@@ -10,7 +10,7 @@ export default function Nav() {
           <a href="#how-it-works" className="text-text-secondary hover:text-neon-green transition-colors">How It Works</a>
           <a href="#cost" className="text-text-secondary hover:text-neon-green transition-colors">Cost</a>
           <a
-            href="https://github.com/JacobEverly/zk-price-feeds"
+            href="https://github.com/boundless-xyz/zk-oracle"
             target="_blank"
             rel="noopener noreferrer"
             className="px-4 py-1.5 rounded-lg text-bg font-bold text-sm transition-all hover:-translate-y-0.5"

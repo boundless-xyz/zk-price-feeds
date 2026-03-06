@@ -52,7 +52,7 @@ export default function Hero() {
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-20">
           <a
-            href="https://github.com/JacobEverly/zk-price-feeds"
+            href="https://github.com/boundless-xyz/zk-oracle"
             target="_blank"
             rel="noopener noreferrer"
             className="group px-8 py-4 rounded-xl font-bold text-lg text-bg transition-all duration-300 hover:-translate-y-1 glow-green"

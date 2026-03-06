@@ -179,7 +179,7 @@ export default function ZeroMigration() {
           </p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <a
-              href="https://github.com/JacobEverly/zk-price-feeds"
+              href="https://github.com/boundless-xyz/zk-oracle"
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3 rounded-xl font-bold text-bg transition-all duration-300 hover:-translate-y-1 glow-green"
