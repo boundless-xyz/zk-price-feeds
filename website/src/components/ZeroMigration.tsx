@@ -177,25 +177,15 @@ export default function ZeroMigration() {
           <p className="text-xl font-body font-bold text-text-primary mb-4">
             Ready to try it? Deploy a feed for your token in 5 minutes.
           </p>
-          <div className="flex items-center justify-center gap-4 flex-wrap">
-            <a
-              href="https://github.com/boundless-xyz/zk-oracle"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 rounded-xl font-bold text-bg transition-all duration-300 hover:-translate-y-1 glow-green"
-              style={{ background: "linear-gradient(135deg, #39ff14, #00e5ff)" }}
-            >
-              Get Started on GitHub
-            </a>
-            <a
-              href="https://docs.beboundless.xyz"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="glass px-6 py-3 rounded-xl text-text-primary font-bold hover:bg-white/10 transition-all duration-300 hover:-translate-y-1"
-            >
-              Read the Docs
-            </a>
-          </div>
+          <a
+            href="https://github.com/boundless-xyz/zk-oracle"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3 rounded-xl font-bold text-bg transition-all duration-300 hover:-translate-y-1 glow-green"
+            style={{ background: "linear-gradient(135deg, #39ff14, #00e5ff)" }}
+          >
+            Get Started on GitHub
+          </a>
         </div>
       </div>
     </section>
