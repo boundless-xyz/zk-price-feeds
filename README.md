@@ -4,33 +4,44 @@ ZK-verified price feeds for any ERC-20 token with a DEX pool. Trustless, cost-ef
 
 ## What is this?
 
-A ZK oracle that reads Uniswap V2 pool reserves across multiple blocks inside a [RISC Zero](https://risczero.com) zkVM, computes a manipulation-resistant median price, and posts it on-chain with a proof. No committees, no multisigs — just math.
+A ZK oracle that reads Uniswap V2 pool reserves across multiple blocks inside a [RISC Zero](https://risczero.com) zkVM, computes a manipulation-resistant median price, and posts it on-chain with a proof. No committees, no multisigs -- just math.
 
 **Drop-in adapters** for Chainlink, Pyth, RedStone, and Chronicle mean your existing protocol code works with zero changes.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  Guest Program (zkVM)                               │
-│  • Reads getReserves() across N blocks via Steel    │
-│  • Computes median price                            │
-│  • Commits journal with proof                       │
-└──────────────────────┬──────────────────────────────┘
-                       │ ZK Proof + Journal
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│  ZkOracle.sol (on-chain)                            │
-│  • Verifies ZK proof via RISC Zero verifier         │
-│  • Validates Steel commitment (real chain state)    │
-│  • Stores price rounds                              │
-│  • Implements Chainlink AggregatorV3Interface       │
-└──────────────────────┬──────────────────────────────┘
-                       │
-          ┌────────────┼────────────┬──────────────┐
-          ▼            ▼            ▼              ▼
-   PythAdapter  RedstoneAdapter  ChronicleAdapter  (direct)
-   IPyth        IRedstoneAdapter IChronicle        latestRoundData()
+                  ┌──────────────────────────────────────────────┐
+                  │  Guest Program (zkVM)                        │
+                  │  * Reads getReserves() across N blocks       │
+                  │  * Computes median price                     │
+                  │  * Commits journal with proof                │
+                  └──────────────────────┬───────────────────────┘
+                                         │ ZK Proof + Journal
+                    ┌────────────────────┤
+                    │                    │
+                    ▼                    ▼
+         ┌──────────────────┐  ┌─────────────────────────────────┐
+         │  Boundless Market │  │  Local Prover                   │
+         │  (recommended)    │  │  cargo run --release            │
+         └────────┬─────────┘  └──────────────┬──────────────────┘
+                  │                            │
+                  └────────────┬───────────────┘
+                               │ journal + seal
+                               ▼
+         ┌─────────────────────────────────────────────────────┐
+         │  ZkOracle.sol (on-chain)                            │
+         │  * Verifies ZK proof via RISC Zero verifier         │
+         │  * Validates Steel commitment (real chain state)    │
+         │  * Stores price rounds                              │
+         │  * Implements Chainlink AggregatorV3Interface       │
+         └──────────────────────┬──────────────────────────────┘
+                                │
+         ┌──────────┬───────────┼───────────┬──────────────┐
+         ▼          ▼           ▼           ▼              ▼
+      Chainlink  PythAdapter  Redstone   Chronicle     (direct)
+      (built-in) IPyth       Adapter     Adapter       latestRoundData()
+                              IRedstone  IChronicle
 ```
 
 ## Project Structure
@@ -46,7 +57,8 @@ A ZK oracle that reads Uniswap V2 pool reserves across multiple blocks inside a 
 ├── methods/
 │   └── guest/src/main.rs            # zkVM guest program
 ├── host/src/bin/
-│   ├── main.rs                      # CLI to run the prover
+│   ├── main.rs                      # CLI: local prove + on-chain submit
+│   ├── boundless.rs                 # CLI: prove via Boundless Market
 │   └── benchmark.rs                 # Benchmarking tool
 ├── scripts/
 │   └── benchmark_all.py             # Multi-pair benchmark script
@@ -107,11 +119,11 @@ forge create src/ZkOracle.sol:ZkOracle \
   --private-key $PRIVATE_KEY
 ```
 
-### 4. Prove and submit on-chain (end-to-end)
+### 4. Prove and submit on-chain (self-prove)
 
 ```bash
-# Generate proof AND submit it to the ZkOracle contract.
-# This is the full pipeline: read → prove → verify on-chain → store price.
+# Generate proof locally AND submit it to the ZkOracle contract.
+# Full pipeline: read reserves -> prove -> verify on-chain -> store price.
 cargo run --release -- \
   --rpc-url $RPC_URL \
   --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
@@ -127,6 +139,48 @@ The host will:
 3. Verify the on-chain contract's image ID matches
 4. Call `updatePrice(journal, seal)` on-chain
 5. Confirm the transaction and print the new price round
+
+### 5. Prove via Boundless Market (recommended)
+
+Instead of running a local prover, submit to the [Boundless Market](https://beboundless.xyz) where provers compete to fulfill your request. Cheaper and faster than self-proving.
+
+```bash
+# Set up Boundless credentials
+export RPC_URL="https://..."
+export PRIVATE_KEY="your-key"
+export PINATA_JWT="your-pinata-jwt"  # for uploading the ELF
+
+# Submit proof request to Boundless, wait for fulfillment, update on-chain
+cargo run --release --bin boundless -- \
+  --rpc-url $RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
+  --oracle-address <DEPLOYED_ZK_ORACLE_ADDRESS> \
+  --num-blocks 10 \
+  --decimals 18 \
+  --storage-uploader pinata
+```
+
+The Boundless CLI will:
+1. Fetch reserves across N blocks via Steel
+2. Upload the guest program ELF to IPFS via Pinata
+3. Submit a proof request to the Boundless Market
+4. Wait for a prover to fulfill the request (~15 seconds)
+5. Take the journal + seal from the fulfilled proof
+6. Call `updatePrice(journal, seal)` on the ZkOracle contract
+7. Confirm the transaction and print the new price round
+
+If you've already uploaded the ELF, pass `--program-url` to skip re-uploading:
+
+```bash
+cargo run --release --bin boundless -- \
+  --rpc-url $RPC_URL \
+  --private-key $PRIVATE_KEY \
+  --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
+  --oracle-address <DEPLOYED_ZK_ORACLE_ADDRESS> \
+  --num-blocks 10 \
+  --program-url "https://gateway.pinata.cloud/ipfs/Qm..."
+```
 
 ## Oracle Adapters
 
@@ -189,19 +243,19 @@ uint price = IChronicle(address(adapter)).read(); // 18-decimal fixed-point
 
 1. **Read**: The zkVM guest program reads `getReserves()` from a Uniswap V2 pair across N blocks using [Steel](https://github.com/boundless-xyz/steel). Every storage read is cryptographically tied to actual Ethereum state.
 
-2. **Prove**: The guest computes the median price and the zkVM generates a proof. ~73M cycles, ~15 seconds proving time, ~$0.004 proving cost.
+2. **Prove**: The guest computes the median price and the zkVM generates a Groth16 proof. ~73M cycles, ~15 seconds proving time, ~$0.004 proving cost via [Boundless](https://beboundless.xyz).
 
 3. **Verify**: `ZkOracle.sol` verifies the proof on-chain (~250K gas) and stores the new price round. Your protocol calls `latestRoundData()` or whichever adapter interface you prefer.
 
 ### Flash Loan Resistance
 
-The oracle computes the median across N blocks (default 10, configurable 5-100). A flash loan manipulates price within a single transaction. To manipulate this oracle, an attacker would need to control pool reserves across a majority of sampled blocks — costing tens of millions in capital at risk over multiple minutes.
+The oracle computes the median across N blocks (default 10, configurable 5-100). A flash loan manipulates price within a single transaction. To manipulate this oracle, an attacker would need to control pool reserves across a majority of sampled blocks -- costing tens of millions in capital at risk over multiple minutes.
 
 ## Cost
 
 | Component | Cost |
 |-----------|------|
-| ZK proving | ~$0.004 per update |
+| ZK proving (via Boundless) | ~$0.004 per update |
 | On-chain verification (L1) | ~250K gas |
 | On-chain verification (L2) | ~$0.007 gas |
 | **Total per update (L2)** | **~$0.01** |
@@ -214,8 +268,12 @@ The oracle computes the median across N blocks (default 10, configurable 5-100).
 | `--num-blocks` | 10 | Number of blocks to sample |
 | `--stride` | 1 | Sample every Nth block |
 | `--decimals` | 18 | Output price decimal places |
-| `--pool` | — | Uniswap V2 pair address |
-| `--rpc-url` | — | Ethereum RPC endpoint |
+| `--pool` | -- | Uniswap V2 pair address |
+| `--rpc-url` | -- | Ethereum RPC endpoint |
+| `--oracle-address` | -- | Deployed ZkOracle contract (for on-chain submission) |
+| `--private-key` | -- | Wallet key (for on-chain submission) |
+| `--program-url` | -- | Pre-uploaded ELF URL (Boundless CLI, skips upload) |
+| `--storage-uploader` | -- | Storage backend for ELF upload (`pinata`) |
 
 ## License
 

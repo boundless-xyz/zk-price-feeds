@@ -8,6 +8,7 @@ alloy = { workspace = true }
 alloy-primitives = { workspace = true }
 alloy-sol-types = { workspace = true }
 anyhow = { workspace = true }
+boundless-market = { version = "3.0" }
 clap = { workspace = true }
 dotenvy = "0.15"
 risc0-ethereum-contracts = { version = "3.0" }
