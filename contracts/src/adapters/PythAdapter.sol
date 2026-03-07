@@ -27,6 +27,7 @@ interface IPyth {
 /// @dev Protocols using Pyth can point at this adapter with zero code changes.
 ///      The priceId is the keccak256 of the feed description for deterministic mapping.
 ///      EMA functions return the same spot price (ZK oracle computes median, not EMA).
+///      Prices are scaled to Pyth's 8-decimal convention to avoid int64 overflow.
 contract ZkOraclePythAdapter is IPyth {
     ZkOracle public immutable oracle;
 
@@ -36,14 +37,17 @@ contract ZkOraclePythAdapter is IPyth {
     /// @notice Maximum age (seconds) before getPrice() reverts.
     uint public immutable validTimePeriod;
 
+    /// @notice Pyth convention: 8 decimal places.
+    uint8 internal constant PYTH_DECIMALS = 8;
+
     error StalePrice();
     error PriceFeedNotFound();
     error NoRoundData();
+    error PriceOverflow();
 
     constructor(ZkOracle _oracle, uint _validTimePeriod) {
         oracle = _oracle;
         validTimePeriod = _validTimePeriod;
-        // Deterministic priceId from the oracle's description
         priceId = keccak256(abi.encodePacked(_oracle.description()));
     }
 
@@ -51,7 +55,6 @@ contract ZkOraclePythAdapter is IPyth {
         return validTimePeriod;
     }
 
-    /// @notice Returns the latest price, reverting if stale.
     function getPrice(bytes32 id) external view override returns (PythPrice memory) {
         _checkId(id);
         PythPrice memory p = _latestPrice();
@@ -59,13 +62,11 @@ contract ZkOraclePythAdapter is IPyth {
         return p;
     }
 
-    /// @notice Returns the latest price with no staleness check.
     function getPriceUnsafe(bytes32 id) external view override returns (PythPrice memory) {
         _checkId(id);
         return _latestPrice();
     }
 
-    /// @notice Returns the latest price, reverting if older than `age` seconds.
     function getPriceNoOlderThan(bytes32 id, uint age) external view override returns (PythPrice memory) {
         _checkId(id);
         PythPrice memory p = _latestPrice();
@@ -73,7 +74,6 @@ contract ZkOraclePythAdapter is IPyth {
         return p;
     }
 
-    /// @notice EMA price (returns spot median -- ZK oracle doesn't compute EMA).
     function getEmaPrice(bytes32 id) external view override returns (PythPrice memory) {
         _checkId(id);
         PythPrice memory p = _latestPrice();
@@ -81,13 +81,11 @@ contract ZkOraclePythAdapter is IPyth {
         return p;
     }
 
-    /// @notice EMA price unsafe (returns spot median).
     function getEmaPriceUnsafe(bytes32 id) external view override returns (PythPrice memory) {
         _checkId(id);
         return _latestPrice();
     }
 
-    /// @notice EMA price with age check (returns spot median).
     function getEmaPriceNoOlderThan(bytes32 id, uint age) external view override returns (PythPrice memory) {
         _checkId(id);
         PythPrice memory p = _latestPrice();
@@ -107,15 +105,29 @@ contract ZkOraclePythAdapter is IPyth {
 
         (, int256 answer,, uint256 updatedAt,) = oracle.latestRoundData();
 
-        // Convert from oracle decimals to Pyth expo format.
-        // Oracle stores price as fixed-point with PRICE_DECIMALS digits.
-        // Pyth uses price * 10^expo, so expo = -int32(decimals).
-        int32 expo = -int32(uint32(oracle.decimals()));
+        // Scale from oracle decimals to Pyth's 8-decimal convention.
+        // This prevents int64 overflow which occurs at 18 decimals for prices > ~9.22.
+        uint8 oracleDecimals = oracle.decimals();
+        uint256 absAnswer = answer >= 0 ? uint256(answer) : uint256(-answer);
+
+        uint256 scaled;
+        if (oracleDecimals > PYTH_DECIMALS) {
+            scaled = absAnswer / (10 ** (oracleDecimals - PYTH_DECIMALS));
+        } else if (oracleDecimals < PYTH_DECIMALS) {
+            scaled = absAnswer * (10 ** (PYTH_DECIMALS - oracleDecimals));
+        } else {
+            scaled = absAnswer;
+        }
+
+        // Verify the scaled value fits in int64 (max ~9.22 * 10^18).
+        if (scaled > uint256(uint64(type(int64).max))) revert PriceOverflow();
+
+        int64 scaledPrice = answer >= 0 ? int64(int256(scaled)) : -int64(int256(scaled));
 
         return PythPrice({
-            price: int64(answer),
-            conf: 0, // ZK median has no confidence interval
-            expo: expo,
+            price: scaledPrice,
+            conf: 0,
+            expo: -int32(uint32(PYTH_DECIMALS)),
             publishTime: updatedAt
         });
     }

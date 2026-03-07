@@ -10,7 +10,7 @@ risc0-steel = { git = "https://github.com/boundless-xyz/steel.git" }
 risc0-build = { version = "3.0" }
 risc0-zkvm = { version = "3.0" }
 
-alloy = { version = "1.0", features = ["providers", "rpc-types", "transports", "contract"] }
+alloy = { version = "1.0", features = ["providers", "rpc-types", "transports", "contract", "sol-types"] }
 alloy-primitives = { version = "1.0" }
 alloy-sol-types = { version = "1.0" }
 anyhow = "1.0"

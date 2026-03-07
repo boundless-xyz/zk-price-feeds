@@ -1,3 +1,5 @@
+import Reveal from "./Reveal";
+
 const categories = [
   "Micro-cap DeFi tokens",
   "LP tokens & vault shares",
@@ -7,109 +9,100 @@ const categories = [
   "RWA tokens without CEX listings",
 ];
 
-const tokens = [
-  { s: "ETH", lit: true }, { s: "BTC", lit: true }, { s: "LINK", lit: true },
-  { s: "UNI", lit: true }, { s: "?", lit: false }, { s: "?", lit: false },
-  { s: "AAVE", lit: true }, { s: "?", lit: false }, { s: "?", lit: false },
-  { s: "?", lit: false }, { s: "MKR", lit: true }, { s: "?", lit: false },
-  { s: "?", lit: false }, { s: "?", lit: false }, { s: "?", lit: false },
-  { s: "CRV", lit: true }, { s: "?", lit: false }, { s: "?", lit: false },
-  { s: "?", lit: false }, { s: "?", lit: false }, { s: "?", lit: false },
-  { s: "?", lit: false }, { s: "SNX", lit: true }, { s: "?", lit: false },
-  { s: "?", lit: false }, { s: "?", lit: false }, { s: "?", lit: false },
-  { s: "?", lit: false }, { s: "?", lit: false }, { s: "?", lit: false },
-  { s: "COMP", lit: true }, { s: "?", lit: false }, { s: "?", lit: false },
-  { s: "?", lit: false }, { s: "?", lit: false }, { s: "?", lit: false },
-];
-
 const dexes = [
-  { name: "Uniswap V2/V3", chains: "Ethereum, Base, Arbitrum, ..." },
-  { name: "PancakeSwap", chains: "BSC, Ethereum, Base, ..." },
-  { name: "Curve", chains: "Ethereum, Arbitrum, ..." },
-  { name: "Balancer V2", chains: "Ethereum, Arbitrum, Polygon" },
-  { name: "Aerodrome", chains: "Base" },
-  { name: "Trader Joe", chains: "Avalanche, Arbitrum" },
-  { name: "DODO", chains: "Multi-chain" },
-  { name: "Camelot", chains: "Arbitrum" },
-  { name: "SushiSwap", chains: "Multi-chain" },
-  { name: "Any V2 fork", chains: "Any EVM chain" },
+  { name: "Uniswap V2/V3", note: "observe() TWAP" },
+  { name: "Curve", note: "StableSwap" },
+  { name: "Balancer V2", note: "Weighted" },
+  { name: "Solidly / Aerodrome", note: "Stable" },
+  { name: "Trader Joe LB", note: "Active bin" },
+  { name: "DODO PMM", note: "Mid price" },
+  { name: "Algebra V3", note: "Camelot" },
+  { name: "Any V2 fork", note: "SushiSwap, PancakeSwap, ..." },
 ];
 
 export default function Problem() {
   return (
-    <section className="py-28 px-6 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-neon-purple/5 rounded-full blur-[150px]" />
+    <section className="py-20 sm:py-28 border-t border-border">
+      <div className="max-w-5xl mx-auto px-5 sm:px-8">
+        <Reveal>
+          <div className="mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-bold leading-tight tracking-tight text-text-primary mb-5">
+              Chainlink covers ~350 tokens.
+            </h2>
+            <p className="text-2xl sm:text-3xl font-display font-bold text-text-muted tracking-tight mb-5">
+              There are 500,000+ pairs.
+            </p>
+            <p className="text-base sm:text-lg text-text-secondary max-w-lg font-body leading-relaxed">
+              Want a feed for your token? Get in line. Or pay $50-200K/year to
+              sponsor one. We built something different.
+            </p>
+          </div>
+        </Reveal>
 
-      <div className="max-w-5xl mx-auto relative z-10">
-        <div className="text-center mb-12">
-          <h2 className="text-4xl sm:text-6xl font-display tracking-wide mb-6">
-            <span className="text-text-primary block">Chainlink covers <span className="text-neon-cyan text-glow-cyan">~350 tokens</span>.</span>
-            <span className="text-text-primary block mt-2">There are <span className="gradient-text-pink-purple">500,000+</span> pairs.</span>
-          </h2>
+        {/* Proportional comparison */}
+        <Reveal>
+          <div className="mb-14 max-w-md">
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <span className="text-sm font-body text-text-muted">Chainlink feeds</span>
+                  <span className="text-sm font-mono font-bold text-text-muted">~350</span>
+                </div>
+                <div className="h-2.5 bg-bg-raised rounded-full overflow-hidden">
+                  <div className="h-full w-[0.07%] min-w-[3px] bg-text-muted/40 rounded-full" />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <span className="text-sm font-body text-text-secondary">On-chain trading pairs</span>
+                  <span className="text-sm font-mono font-bold text-accent">500,000+</span>
+                </div>
+                <div className="h-2.5 bg-bg-raised rounded-full overflow-hidden">
+                  <div className="h-full w-full bg-accent/30 rounded-full" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </Reveal>
 
-          <p className="text-xl text-text-secondary mb-12 max-w-2xl mx-auto font-body">
-            If your token has a pool on any supported DEX -- on any EVM chain -- it can have a ZK-verified price feed. No application, no vendor contract, no waiting.
+        {/* Token categories */}
+        <Reveal>
+          <p className="text-xs font-body font-medium text-text-muted mb-3 uppercase tracking-wider">
+            Tokens Chainlink will never support
           </p>
-        </div>
-
-        {/* Comparison cards */}
-        <div className="grid grid-cols-2 gap-6 max-w-lg mx-auto mb-16">
-          <div className="glass rounded-2xl p-6">
-            <div className="text-5xl font-mono font-bold text-chainlink-blue mb-2">350</div>
-            <div className="text-sm text-text-muted font-body">Chainlink feeds</div>
-            <div className="mt-4 h-3 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full w-[1%] bg-chainlink-blue rounded-full min-w-[6px]" />
-            </div>
+          <div className="flex flex-wrap gap-2 mb-14">
+            {categories.map((cat) => (
+              <span
+                key={cat}
+                className="bg-bg-surface rounded-md px-3 py-1.5 text-sm text-text-secondary font-body"
+              >
+                {cat}
+              </span>
+            ))}
           </div>
-          <div className="glass rounded-2xl p-6 glow-green">
-            <div className="text-5xl font-mono font-bold text-neon-green mb-2">500K+</div>
-            <div className="text-sm text-text-muted font-body">On-chain pairs</div>
-            <div className="mt-4 h-3 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full w-full bg-gradient-to-r from-neon-green to-neon-cyan rounded-full" />
-            </div>
-          </div>
-        </div>
-
-        {/* Token grid */}
-        <div className="grid grid-cols-6 sm:grid-cols-9 md:grid-cols-12 gap-2.5 max-w-4xl mx-auto mb-12">
-          {tokens.map((t, i) => (
-            <div
-              key={i}
-              className={`aspect-square rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-mono font-bold transition-all duration-300 cursor-pointer ${
-                t.lit
-                  ? "bg-neon-green/15 border border-neon-green/40 text-neon-green hover:scale-110"
-                  : "glass text-white/10 hover:bg-neon-green/10 hover:border-neon-green/30 hover:text-neon-green hover:scale-105"
-              }`}
-            >
-              {t.s}
-            </div>
-          ))}
-        </div>
-
-        {/* Categories */}
-        <div className="flex flex-wrap items-center justify-center gap-3 max-w-3xl mx-auto mb-12">
-          {categories.map((cat) => (
-            <span
-              key={cat}
-              className="glass rounded-lg px-4 py-2 text-sm text-text-secondary font-body"
-            >
-              {cat}
-            </span>
-          ))}
-        </div>
+        </Reveal>
 
         {/* Supported DEXes */}
-        <div className="glass-strong rounded-2xl p-8 max-w-3xl mx-auto text-center">
-          <p className="text-xs font-mono text-text-muted tracking-widest mb-5">SUPPORTED DEX PROTOCOLS (ANY EVM CHAIN)</p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
+        <Reveal>
+          <p className="text-xs font-body font-medium text-text-muted mb-4 uppercase tracking-wider">
+            8 DEX types supported
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {dexes.map((d) => (
-              <div key={d.name} className="glass rounded-lg px-4 py-2.5">
-                <span className="text-text-primary font-bold font-body text-sm">{d.name}</span>
-                <span className="text-text-muted text-xs font-mono ml-2">{d.chains}</span>
+              <div
+                key={d.name}
+                className="bg-bg-surface rounded-lg px-3 py-2.5 hover:bg-bg-raised transition-colors"
+              >
+                <span className="text-text-primary font-medium font-body text-sm block">
+                  {d.name}
+                </span>
+                <span className="text-text-muted text-xs font-mono">
+                  {d.note}
+                </span>
               </div>
             ))}
           </div>
-        </div>
+        </Reveal>
       </div>
     </section>
   );

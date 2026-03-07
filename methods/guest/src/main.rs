@@ -1,8 +1,9 @@
 #![no_main]
 
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, Sign, U256};
 use alloy_sol_types::{SolValue, sol};
 use risc0_steel::{Contract, EvmBlockHeader, ethereum::EthEvmInput};
+use risc0_steel::ethereum::EthChainSpec;
 use risc0_zkvm::guest::env;
 
 risc0_zkvm::guest::entry!(main);
@@ -10,61 +11,40 @@ risc0_zkvm::guest::entry!(main);
 // ─── DEX interfaces ──────────────────────────────────────────────────────────
 
 sol! {
-    // Uniswap V2 / SushiSwap / PancakeSwap V2 / Solidly volatile
     interface IUniswapV2Pair {
         function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
     }
 
-    // Solidly-style (Aerodrome V2 / Velodrome V2) -- adds stable() flag
     interface ISolidlyPair {
         function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
-        function stable() external view returns (bool);
-        function decimals() external view returns (uint8);
-        function token0() external view returns (address);
-        function token1() external view returns (address);
     }
 
-    // Uniswap V3 / PancakeSwap V3 / SushiSwap V3 / Aerodrome CL / Velodrome CL
     interface IUniswapV3Pool {
         function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked);
-        function token0() external view returns (address);
-        function token1() external view returns (address);
+        function observe(uint32[] secondsAgos) external view returns (int56[] tickCumulatives, uint160[] secondsPerLiquidityCumulativeX128s);
     }
 
-    // Algebra V3 (Camelot, QuickSwap V3) -- uses globalState instead of slot0
     interface IAlgebraPool {
         function globalState() external view returns (uint160 price, int24 tick, uint16 feeZto, uint16 feeOtz, uint16 timepointIndex, uint8 communityFeeToken0, uint8 communityFeeToken1);
-        function token0() external view returns (address);
-        function token1() external view returns (address);
     }
 
-    // Curve StableSwap
     interface ICurvePool {
         function balances(uint256 i) external view returns (uint256);
-        function A() external view returns (uint256);
-        function coins(uint256 i) external view returns (address);
     }
 
-    // Balancer V2 Vault
     interface IBalancerVault {
         function getPoolTokens(bytes32 poolId) external view returns (address[] tokens, uint256[] balances, uint256 lastChangeBlock);
     }
 
-    // Balancer weighted pool
     interface IBalancerWeightedPool {
         function getNormalizedWeights() external view returns (uint256[]);
-        function getPoolId() external view returns (bytes32);
     }
 
-    // Trader Joe Liquidity Book V2.1
     interface ILBPair {
         function getActiveId() external view returns (uint24);
         function getBinStep() external view returns (uint16);
-        function tokenX() external view returns (address);
-        function tokenY() external view returns (address);
     }
 
-    // DODO PMM
     interface IDODO {
         function getMidPrice() external view returns (uint256);
     }
@@ -81,6 +61,7 @@ sol! {
         uint32 numSamples;
         uint64 startBlock;
         uint64 endBlock;
+        uint64 timestamp;
     }
 }
 
@@ -104,151 +85,97 @@ struct OracleConfig {
     pool: Address,
     decimals: u8,
     dex_type: DexType,
-    /// Extra address needed for some DEX types (e.g. Balancer Vault).
     aux_address: Option<Address>,
-    /// Extra bytes32 needed for some DEX types (e.g. Balancer pool ID).
     aux_bytes32: Option<[u8; 32]>,
-    /// Token decimals for token0 (needed for V3 price math).
     token0_decimals: Option<u8>,
-    /// Token decimals for token1 (needed for V3 price math).
     token1_decimals: Option<u8>,
+    twap_window: u32,
+    chain_spec: EthChainSpec,
 }
 
-// ─── Price computation per DEX type ───────────────────────────────────────────
+// ─── V3 price helper ─────────────────────────────────────────────────────────
 
-fn price_uniswap_v2(pool: Address, scale: U256, env: &risc0_steel::ethereum::EthEvmEnv<risc0_steel::EvmInput<risc0_steel::ethereum::EthBlockHeader>>) -> Option<U256> {
-    let call = IUniswapV2Pair::getReservesCall {};
-    let contract = Contract::new(pool, env);
-    let returns = contract.call_builder(&call).call();
-    let r0 = U256::from(returns.reserve0);
-    let r1 = U256::from(returns.reserve1);
-    if r0.is_zero() { return None; }
-    Some((r1 * scale) / r0)
-}
-
-fn price_uniswap_v3(pool: Address, scale: U256, t0dec: u8, t1dec: u8, env: &risc0_steel::ethereum::EthEvmEnv<risc0_steel::EvmInput<risc0_steel::ethereum::EthBlockHeader>>) -> Option<U256> {
-    let call = IUniswapV3Pool::slot0Call {};
-    let contract = Contract::new(pool, env);
-    let returns = contract.call_builder(&call).call();
-    let sqrt_price = U256::from(returns.sqrtPriceX96);
-    if sqrt_price.is_zero() { return None; }
-    // price = sqrtPriceX96^2 * 10^decimals * 10^t0dec / (2^192 * 10^t1dec)
-    // Rearrange to avoid overflow: (sqrtPriceX96^2 * scale * 10^t0dec) / (2^192 * 10^t1dec)
-    let sq = sqrt_price * sqrt_price;
-    let q192 = U256::from(1u64) << 192;
-    let t0_scale = U256::from(10u64).pow(U256::from(t0dec));
-    let t1_scale = U256::from(10u64).pow(U256::from(t1dec));
-    // token0 price in token1 terms: (sq * scale * t0_scale) / (q192 * t1_scale)
-    // But this can overflow. Use intermediate division:
-    // price = (sq / q192) * scale * t0_scale / t1_scale -- but sq/q192 loses precision
-    // Better: (sq * scale) / q192 * t0_scale / t1_scale
-    let numerator = sq * scale;
-    let price_raw = numerator / q192;
-    let price = (price_raw * t0_scale) / t1_scale;
-    Some(price)
-}
-
-fn price_algebra_v3(pool: Address, scale: U256, t0dec: u8, t1dec: u8, env: &risc0_steel::ethereum::EthEvmEnv<risc0_steel::EvmInput<risc0_steel::ethereum::EthBlockHeader>>) -> Option<U256> {
-    let call = IAlgebraPool::globalStateCall {};
-    let contract = Contract::new(pool, env);
-    let returns = contract.call_builder(&call).call();
-    let sqrt_price = U256::from(returns.price);
-    if sqrt_price.is_zero() { return None; }
-    let sq = sqrt_price * sqrt_price;
-    let q192 = U256::from(1u64) << 192;
-    let t0_scale = U256::from(10u64).pow(U256::from(t0dec));
-    let t1_scale = U256::from(10u64).pow(U256::from(t1dec));
-    let numerator = sq * scale;
-    let price_raw = numerator / q192;
-    let price = (price_raw * t0_scale) / t1_scale;
-    Some(price)
-}
-
-fn price_curve(pool: Address, scale: U256, env: &risc0_steel::ethereum::EthEvmEnv<risc0_steel::EvmInput<risc0_steel::ethereum::EthBlockHeader>>) -> Option<U256> {
-    let call0 = ICurvePool::balancesCall { i: U256::ZERO };
-    let call1 = ICurvePool::balancesCall { i: U256::from(1u64) };
-    let contract = Contract::new(pool, env);
-    let b0 = contract.call_builder(&call0).call()._0;
-    let b1 = contract.call_builder(&call1).call()._0;
-    if b0.is_zero() { return None; }
-    // Simple ratio price (works well for balanced Curve pools).
-    // For stableswap, b0 ~ b1 so price ~ scale. For crypto pools, this is a raw ratio.
-    Some((b1 * scale) / b0)
-}
-
-fn price_balancer(pool: Address, vault: Address, pool_id: [u8; 32], scale: U256, env: &risc0_steel::ethereum::EthEvmEnv<risc0_steel::EvmInput<risc0_steel::ethereum::EthBlockHeader>>) -> Option<U256> {
-    // Get balances from the Vault.
-    let vault_call = IBalancerVault::getPoolTokensCall { poolId: pool_id.into() };
-    let vault_contract = Contract::new(vault, env);
-    let vault_returns = vault_contract.call_builder(&vault_call).call();
-    let balances = vault_returns.balances;
-    if balances.len() < 2 || balances[0].is_zero() { return None; }
-
-    // Get normalized weights from the pool.
-    let weights_call = IBalancerWeightedPool::getNormalizedWeightsCall {};
-    let pool_contract = Contract::new(pool, env);
-    let weights = pool_contract.call_builder(&weights_call).call()._0;
-    if weights.len() < 2 || weights[0].is_zero() || weights[1].is_zero() { return None; }
-
-    // Balancer price: (balance1 / weight1) / (balance0 / weight0) = (balance1 * weight0) / (balance0 * weight1)
-    let price = (balances[1] * weights[0] * scale) / (balances[0] * weights[1]);
-    Some(price)
-}
-
-fn price_solidly_stable(pool: Address, scale: U256, env: &risc0_steel::ethereum::EthEvmEnv<risc0_steel::EvmInput<risc0_steel::ethereum::EthBlockHeader>>) -> Option<U256> {
-    // Solidly stable pools still expose getReserves, but the AMM formula is x^3*y + y^3*x = k.
-    // For price discovery, the marginal price at reserves (x,y) is: dy/dx = (3x^2*y + y^3) / (x^3 + 3x*y^2)
-    // For simplicity and robustness, use the ratio (same as V2) -- for stable pools this is ~1.0,
-    // and the marginal price for stables is very close to the ratio.
-    let call = ISolidlyPair::getReservesCall {};
-    let contract = Contract::new(pool, env);
-    let returns = contract.call_builder(&call).call();
-    let r0 = U256::from(returns.reserve0);
-    let r1 = U256::from(returns.reserve1);
-    if r0.is_zero() { return None; }
-    Some((r1 * scale) / r0)
-}
-
-fn price_trader_joe_lb(pool: Address, scale: U256, env: &risc0_steel::ethereum::EthEvmEnv<risc0_steel::EvmInput<risc0_steel::ethereum::EthBlockHeader>>) -> Option<U256> {
-    let id_call = ILBPair::getActiveIdCall {};
-    let step_call = ILBPair::getBinStepCall {};
-    let contract = Contract::new(pool, env);
-    let active_id = contract.call_builder(&id_call).call()._0;
-    let bin_step = contract.call_builder(&step_call).call()._0;
-
-    // LB price = (1 + binStep/10000) ^ (activeId - 2^23)
-    // Use fixed-point approximation: price ~ scale * (1 + binStep/10000)^delta
-    // For small delta, this is: scale * exp(delta * ln(1 + binStep/10000))
-    // Approximate with: scale * (10000 + binStep)^|delta| / 10000^|delta|
-    let base_id: i64 = 1 << 23; // 8388608
-    let delta: i64 = (active_id as i64) - base_id;
-    let bs = U256::from(bin_step as u64);
-    let ten_k = U256::from(10_000u64);
-
-    // For reasonable delta values (< 1000), compute iteratively
-    let abs_delta = delta.unsigned_abs();
-    if abs_delta > 500 { return None; } // safety limit
-
-    let mut result = scale;
-    for _ in 0..abs_delta {
-        if delta > 0 {
-            result = (result * (ten_k + bs)) / ten_k;
-        } else {
-            result = (result * ten_k) / (ten_k + bs);
-        }
+/// Compute V3/Algebra price from sqrtPriceX96 without U256 overflow.
+///
+/// sqrtPriceX96 is stored as a Q64.96 fixed-point number.
+/// price = sqrtPriceX96^2 / 2^192
+///
+/// Direct squaring overflows U256 for sqrtPriceX96 > 2^128.
+/// We split: sqrtPriceX96 = a * 2^96 + b, then:
+///   price * scale = a^2*scale + 2*a*b*scale/2^96 + b^2*scale/2^192
+///
+/// Max intermediate values:
+///   a^2*scale: 2^128 * 2^60 = 2^188 (fits U256)
+///   2*a*b*scale: 2^221 before shift (fits U256)
+///   b^2*scale: 2^252 before shift (fits U256)
+fn v3_price(sqrt_price: U256, scale: U256, t0_scale: U256, t1_scale: U256) -> Option<U256> {
+    if sqrt_price.is_zero() {
+        return None;
     }
-    Some(result)
+
+    let q96: U256 = U256::from(1u64) << 96;
+    let a: U256 = sqrt_price >> 96;
+    let b: U256 = sqrt_price & (q96 - U256::from(1u64));
+
+    let term1 = a * a * scale;
+    let term2 = if a.is_zero() {
+        U256::ZERO
+    } else {
+        (U256::from(2u64) * a * b * scale) >> 96
+    };
+    let term3 = if b.is_zero() {
+        U256::ZERO
+    } else {
+        (b * b * scale) >> 192
+    };
+
+    let price_raw = term1 + term2 + term3;
+    Some((price_raw * t0_scale) / t1_scale)
 }
 
-fn price_dodo(pool: Address, scale: U256, env: &risc0_steel::ethereum::EthEvmEnv<risc0_steel::EvmInput<risc0_steel::ethereum::EthBlockHeader>>) -> Option<U256> {
-    let call = IDODO::getMidPriceCall {};
-    let contract = Contract::new(pool, env);
-    let mid_price = contract.call_builder(&call).call()._0;
-    if mid_price.is_zero() { return None; }
-    // DODO getMidPrice returns price with 18 decimals.
-    // Scale to requested decimals: (mid_price * scale) / 10^18
-    let dodo_scale = U256::from(10u64).pow(U256::from(18u8));
-    Some((mid_price * scale) / dodo_scale)
+// ─── V3 TWAP helpers ────────────────────────────────────────────────────────
+
+/// Port of Uniswap V3 TickMath.getSqrtRatioAtTick.
+/// Converts a tick to sqrtPriceX96 (Q64.96 fixed-point).
+fn tick_to_sqrt_price_x96(tick: i32) -> U256 {
+    let abs_tick = tick.unsigned_abs();
+    assert!(abs_tick <= 887272, "tick out of range");
+
+    let mut ratio: U256 = if abs_tick & 0x1 != 0 {
+        U256::from(0xfffcb933bd6fad37aa2d162d1a594001u128)
+    } else {
+        U256::from(1u128) << 128
+    };
+
+    if abs_tick & 0x2 != 0 { ratio = (ratio * U256::from(0xfff97272373d413259a46990580e213au128)) >> 128; }
+    if abs_tick & 0x4 != 0 { ratio = (ratio * U256::from(0xfff2e50f5f656932ef12357cf3c7fdccu128)) >> 128; }
+    if abs_tick & 0x8 != 0 { ratio = (ratio * U256::from(0xffe5caca7e10e4e61c3624eaa0941cd0u128)) >> 128; }
+    if abs_tick & 0x10 != 0 { ratio = (ratio * U256::from(0xffcb9843d60f6159c9db58835c926644u128)) >> 128; }
+    if abs_tick & 0x20 != 0 { ratio = (ratio * U256::from(0xff973b41fa98c081472e6896dfb254c0u128)) >> 128; }
+    if abs_tick & 0x40 != 0 { ratio = (ratio * U256::from(0xff2ea16466c96a3843ec78b326b52861u128)) >> 128; }
+    if abs_tick & 0x80 != 0 { ratio = (ratio * U256::from(0xfe5dee046a99a2a811c461f1969c3053u128)) >> 128; }
+    if abs_tick & 0x100 != 0 { ratio = (ratio * U256::from(0xfcbe86c7900a88aedcffc83b479aa3a4u128)) >> 128; }
+    if abs_tick & 0x200 != 0 { ratio = (ratio * U256::from(0xf987a7253ac413176f2b074cf7815e54u128)) >> 128; }
+    if abs_tick & 0x400 != 0 { ratio = (ratio * U256::from(0xf3392b0822b70005940c7a398e4b70f3u128)) >> 128; }
+    if abs_tick & 0x800 != 0 { ratio = (ratio * U256::from(0xe7159475a2c29b7443b29c7fa6e889d9u128)) >> 128; }
+    if abs_tick & 0x1000 != 0 { ratio = (ratio * U256::from(0xd097f3bdfd2022b8845ad8f792aa5825u128)) >> 128; }
+    if abs_tick & 0x2000 != 0 { ratio = (ratio * U256::from(0xa9f746462d870fdf8a65dc1f90e061e5u128)) >> 128; }
+    if abs_tick & 0x4000 != 0 { ratio = (ratio * U256::from(0x70d869a156d2a1b890bb3df62baf32f7u128)) >> 128; }
+    if abs_tick & 0x8000 != 0 { ratio = (ratio * U256::from(0x31be135f97d08fd981231505542fcfa6u128)) >> 128; }
+    if abs_tick & 0x10000 != 0 { ratio = (ratio * U256::from(0x9aa508b5b7a84e1c677de54f3e99bc9u128)) >> 128; }
+    if abs_tick & 0x20000 != 0 { ratio = (ratio * U256::from(0x5d6af8dedb81196699c329225ee604u128)) >> 128; }
+    if abs_tick & 0x40000 != 0 { ratio = (ratio * U256::from(0x2216e584f5fa1ea926041bedfe98u128)) >> 128; }
+    if abs_tick & 0x80000 != 0 { ratio = (ratio * U256::from(0x48a170391f7dc42444e8fa2u128)) >> 128; }
+
+    if tick > 0 {
+        ratio = U256::MAX / ratio;
+    }
+
+    // Convert Q128.128 to Q64.96 (right shift 32, round up)
+    let remainder_mask: U256 = (U256::from(1u64) << 32) - U256::from(1u64);
+    let remainder: U256 = ratio & remainder_mask;
+    let round_up: U256 = if remainder.is_zero() { U256::ZERO } else { U256::from(1u64) };
+    (ratio >> 32) + round_up
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -261,37 +188,174 @@ fn main() {
     let mut start_block: u64 = u64::MAX;
     let mut end_block: u64 = 0;
     let mut last_commitment: Option<Vec<u8>> = None;
+    let mut last_timestamp: u64 = 0;
 
     let scale = U256::from(10u64).pow(U256::from(config.decimals));
     let t0dec = config.token0_decimals.unwrap_or(18);
     let t1dec = config.token1_decimals.unwrap_or(18);
+    let t0_scale = U256::from(10u64).pow(U256::from(t0dec));
+    let t1_scale = U256::from(10u64).pow(U256::from(t1dec));
 
     for _ in 0..num_samples {
         let input: EthEvmInput = env::read();
-        let evm_env = input.into_env(&risc0_steel::ethereum::ETH_MAINNET_CHAIN_SPEC);
+        let evm_env = input.into_env(&config.chain_spec);
 
         let block_number = evm_env.header().number();
+        let block_timestamp = evm_env.header().timestamp();
+
         if block_number < start_block {
             start_block = block_number;
         }
         if block_number > end_block {
             end_block = block_number;
             last_commitment = Some(evm_env.commitment().abi_encode());
+            last_timestamp = block_timestamp;
         }
 
-        let price = match config.dex_type {
-            DexType::UniswapV2 => price_uniswap_v2(config.pool, scale, &evm_env),
-            DexType::UniswapV3 => price_uniswap_v3(config.pool, scale, t0dec, t1dec, &evm_env),
-            DexType::AlgebraV3 => price_algebra_v3(config.pool, scale, t0dec, t1dec, &evm_env),
-            DexType::CurveStableSwap => price_curve(config.pool, scale, &evm_env),
+        let price: Option<U256> = match config.dex_type {
+            DexType::UniswapV2 => {
+                let call = IUniswapV2Pair::getReservesCall {};
+                let contract = Contract::new(config.pool, &evm_env);
+                let returns = contract.call_builder(&call).call();
+                let r0 = U256::from(returns.reserve0);
+                let r1 = U256::from(returns.reserve1);
+                if r0.is_zero() {
+                    None
+                } else {
+                    // Normalize for token decimals:
+                    // price = (r1/10^t1dec) / (r0/10^t0dec) * 10^decimals
+                    //       = r1 * t0_scale * scale / (r0 * t1_scale)
+                    Some((r1 * scale * t0_scale) / (r0 * t1_scale))
+                }
+            }
+            DexType::UniswapV3 => {
+                if config.twap_window > 0 {
+                    // TWAP via observe(): flash-loan-immune, geometric-mean price
+                    let call = IUniswapV3Pool::observeCall {
+                        secondsAgos: vec![config.twap_window, 0],
+                    };
+                    let contract = Contract::new(config.pool, &evm_env);
+                    let returns = contract.call_builder(&call).call();
+                    // Compute tick delta from int56 accumulators
+                    let tick_delta = returns.tickCumulatives[1] - returns.tickCumulatives[0];
+                    let (sign, abs) = tick_delta.into_sign_and_abs();
+                    let delta: i64 = {
+                        let raw = abs.as_limbs()[0] as i64;
+                        if sign == Sign::Negative { -raw } else { raw }
+                    };
+                    let tw = config.twap_window as i64;
+                    // Round towards negative infinity (match Uniswap OracleLibrary)
+                    let avg_tick = if delta < 0 && delta % tw != 0 {
+                        delta / tw - 1
+                    } else {
+                        delta / tw
+                    };
+                    let sqrt_price = tick_to_sqrt_price_x96(avg_tick as i32);
+                    v3_price(sqrt_price, scale, t0_scale, t1_scale)
+                } else {
+                    // Spot price fallback (twap_window = 0)
+                    let call = IUniswapV3Pool::slot0Call {};
+                    let contract = Contract::new(config.pool, &evm_env);
+                    let returns = contract.call_builder(&call).call();
+                    v3_price(U256::from(returns.sqrtPriceX96), scale, t0_scale, t1_scale)
+                }
+            }
+            DexType::AlgebraV3 => {
+                let call = IAlgebraPool::globalStateCall {};
+                let contract = Contract::new(config.pool, &evm_env);
+                let returns = contract.call_builder(&call).call();
+                v3_price(U256::from(returns.price), scale, t0_scale, t1_scale)
+            }
+            DexType::CurveStableSwap => {
+                // NOTE: This uses balance ratio, which is only an approximation for
+                // Curve StableSwap. The exact marginal price requires computing the
+                // derivative of the StableSwap invariant (A*n^n*sum + D = A*D*n^n + D^(n+1)/(n^n*prod)).
+                // For pools near peg (which stable pools should be), the approximation is close.
+                let call0 = ICurvePool::balancesCall { i: U256::ZERO };
+                let call1 = ICurvePool::balancesCall { i: U256::from(1u64) };
+                let contract = Contract::new(config.pool, &evm_env);
+                let b0 = contract.call_builder(&call0).call();
+                let b1 = contract.call_builder(&call1).call();
+                if b0.is_zero() {
+                    None
+                } else {
+                    Some((b1 * scale * t0_scale) / (b0 * t1_scale))
+                }
+            }
             DexType::BalancerV2 => {
                 let vault = config.aux_address.expect("Balancer requires aux_address (Vault)");
                 let pool_id = config.aux_bytes32.expect("Balancer requires aux_bytes32 (poolId)");
-                price_balancer(config.pool, vault, pool_id, scale, &evm_env)
+                let vault_call = IBalancerVault::getPoolTokensCall { poolId: pool_id.into() };
+                let vault_contract = Contract::new(vault, &evm_env);
+                let vault_returns = vault_contract.call_builder(&vault_call).call();
+                let balances = vault_returns.balances;
+                if balances.len() < 2 || balances[0].is_zero() {
+                    None
+                } else {
+                    let weights_call = IBalancerWeightedPool::getNormalizedWeightsCall {};
+                    let pool_contract = Contract::new(config.pool, &evm_env);
+                    let weights = pool_contract.call_builder(&weights_call).call();
+                    if weights.len() < 2 || weights[0].is_zero() || weights[1].is_zero() {
+                        None
+                    } else {
+                        // Balancer spot: (b1 * w0) / (b0 * w1)
+                        // Weights are 18-decimal normalized, balances are in token decimals.
+                        // Apply decimal normalization.
+                        Some((balances[1] * weights[0] * scale * t0_scale) / (balances[0] * weights[1] * t1_scale))
+                    }
+                }
             }
-            DexType::SolidlyStable => price_solidly_stable(config.pool, scale, &evm_env),
-            DexType::TraderJoeLB => price_trader_joe_lb(config.pool, scale, &evm_env),
-            DexType::DodoPMM => price_dodo(config.pool, scale, &evm_env),
+            DexType::SolidlyStable => {
+                // NOTE: Solidly stable pools use x^3*y + y^3*x = k invariant.
+                // The reserve ratio is only approximate. For pools near peg this is close.
+                let call = ISolidlyPair::getReservesCall {};
+                let contract = Contract::new(config.pool, &evm_env);
+                let returns = contract.call_builder(&call).call();
+                let r0 = U256::from(returns.reserve0);
+                let r1 = U256::from(returns.reserve1);
+                if r0.is_zero() {
+                    None
+                } else {
+                    Some((r1 * scale * t0_scale) / (r0 * t1_scale))
+                }
+            }
+            DexType::TraderJoeLB => {
+                let id_call = ILBPair::getActiveIdCall {};
+                let step_call = ILBPair::getBinStepCall {};
+                let contract = Contract::new(config.pool, &evm_env);
+                let active_id = contract.call_builder(&id_call).call();
+                let bin_step = contract.call_builder(&step_call).call();
+                let base_id: i64 = 1 << 23;
+                let delta: i64 = (active_id.to::<u32>() as i64) - base_id;
+                let bs = U256::from(bin_step as u64);
+                let ten_k = U256::from(10_000u64);
+                let abs_delta = delta.unsigned_abs();
+                if abs_delta > 500 {
+                    None
+                } else {
+                    let mut result = scale;
+                    for _ in 0..abs_delta {
+                        if delta > 0 {
+                            result = (result * (ten_k + bs)) / ten_k;
+                        } else {
+                            result = (result * ten_k) / (ten_k + bs);
+                        }
+                    }
+                    Some(result)
+                }
+            }
+            DexType::DodoPMM => {
+                // DODO getMidPrice() returns 18-decimal price. Rescale to oracle decimals.
+                let call = IDODO::getMidPriceCall {};
+                let contract = Contract::new(config.pool, &evm_env);
+                let mid_price = contract.call_builder(&call).call();
+                if mid_price.is_zero() {
+                    None
+                } else {
+                    let dodo_scale = U256::from(10u64).pow(U256::from(18u8));
+                    Some((mid_price * scale) / dodo_scale)
+                }
+            }
         };
 
         if let Some(p) = price {
@@ -299,13 +363,20 @@ fn main() {
         }
     }
 
-    assert!(!prices.is_empty(), "No valid price samples");
+    // Require at least half of requested samples to be valid.
+    let min_required = ((num_samples as usize) + 1) / 2;
+    assert!(
+        prices.len() >= min_required,
+        "Insufficient valid samples: got {}, need at least {}",
+        prices.len(),
+        min_required
+    );
 
     // Compute median.
     prices.sort();
     let median = if prices.len() % 2 == 0 {
         let mid = prices.len() / 2;
-        (prices[mid - 1] + prices[mid]) / U256::from(2)
+        (prices[mid - 1] + prices[mid]) / U256::from(2u64)
     } else {
         prices[prices.len() / 2]
     };
@@ -317,9 +388,10 @@ fn main() {
         pool: config.pool,
         medianPrice: median,
         decimals: config.decimals,
-        numSamples: num_samples,
+        numSamples: prices.len() as u32, // Actual valid count, not requested count
         startBlock: start_block,
         endBlock: end_block,
+        timestamp: last_timestamp,
     };
 
     env::commit_slice(&journal.abi_encode());

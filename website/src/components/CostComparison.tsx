@@ -1,74 +1,141 @@
+import Reveal from "./Reveal";
+
 const providers = [
-  { name: "Chainlink", provingCost: "$0 (LINK-subsidized)", trust: "4-31 node committee", gas: "~400K", color: "text-chainlink-blue", highlight: false },
-  { name: "Pyth", provingCost: "$0.001/update", trust: "Wormhole guardians", gas: "~65K", color: "text-pyth-purple", highlight: false },
-  { name: "RedStone", provingCost: "$0 (sponsor-paid)", trust: "Signer set", gas: "~90K", color: "text-redstone-red", highlight: false },
-  { name: "Chronicle", provingCost: "$0 (sponsor-paid)", trust: "Schnorr multisig", gas: "~150K", color: "text-chronicle-teal", highlight: false },
-  { name: "ZK Oracle", provingCost: "$0.004 + gas", trust: "Mathematics", gas: "~250K", color: "text-neon-green", highlight: true },
+  {
+    name: "Chainlink",
+    cost: "$0 (LINK-subsidized)",
+    trust: "4-31 node committee",
+    gas: "~400K",
+    vendor: "\"Contact sales\"",
+    color: "text-chainlink-blue",
+  },
+  {
+    name: "Pyth",
+    cost: "$0.001/update",
+    trust: "Wormhole guardians",
+    gas: "~90K",
+    vendor: "Free",
+    color: "text-pyth-purple",
+  },
+  {
+    name: "RedStone",
+    cost: "$0 (sponsor-paid)",
+    trust: "Signer set",
+    gas: "~65K",
+    vendor: "Free",
+    color: "text-redstone-red",
+  },
+  {
+    name: "Chronicle",
+    cost: "$0 (sponsor-paid)",
+    trust: "Schnorr multisig",
+    gas: "~250K",
+    vendor: "Allowlist only",
+    color: "text-chronicle-teal",
+  },
+  {
+    name: "ZK Price Feed",
+    cost: "$0.004 + gas",
+    trust: "Mathematics",
+    gas: "~250K",
+    vendor: "Free, permissionless",
+    color: "text-accent",
+    highlight: true,
+  },
 ];
 
 export default function CostComparison() {
   return (
-    <section id="cost" className="py-28 px-6 relative overflow-hidden">
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-neon-purple/5 rounded-full blur-[200px]" />
-
-      <div className="max-w-6xl mx-auto relative z-10">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl sm:text-6xl font-display tracking-wide">
-            <span className="text-text-primary block">And it&apos;s cheaper than</span>
-            <span className="gradient-text-cyan-purple block text-3xl sm:text-5xl mt-2">what you&apos;re paying now.</span>
+    <section id="cost" className="py-20 sm:py-28 bg-bg-surface">
+      <div className="max-w-5xl mx-auto px-5 sm:px-8">
+        <Reveal>
+          <h2 className="text-3xl sm:text-4xl font-display font-bold tracking-tight text-text-primary mb-3">
+            The oracle pricing racket, visualized.
           </h2>
-        </div>
-
-        {/* Provider comparison table */}
-        <div className="glass rounded-2xl overflow-hidden mb-12 max-w-4xl mx-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/10">
-                <th className="text-left py-4 px-5 text-xs font-mono text-text-muted tracking-widest">PROVIDER</th>
-                <th className="text-left py-4 px-5 text-xs font-mono text-text-muted tracking-widest">UPDATE COST</th>
-                <th className="text-left py-4 px-5 text-xs font-mono text-text-muted tracking-widest">ON-CHAIN GAS</th>
-                <th className="text-left py-4 px-5 text-xs font-mono text-text-muted tracking-widest">TRUST</th>
-              </tr>
-            </thead>
-            <tbody>
-              {providers.map((p) => (
-                <tr
-                  key={p.name}
-                  className={`border-b border-white/5 ${p.highlight ? "" : "hover:bg-white/[0.03]"} transition-colors`}
-                  style={p.highlight ? { background: "linear-gradient(135deg, rgba(57,255,20,0.05), rgba(0,229,255,0.03))" } : undefined}
-                >
-                  <td className={`py-4 px-5 font-bold font-body ${p.color}`}>{p.name}</td>
-                  <td className="py-4 px-5 text-sm font-mono">
-                    <span className={p.highlight ? "text-neon-green font-bold" : "text-text-secondary"}>{p.provingCost}</span>
-                  </td>
-                  <td className="py-4 px-5 text-sm font-mono">
-                    <span className={p.highlight ? "text-neon-green font-bold" : "text-text-secondary"}>{p.gas}</span>
-                  </td>
-                  <td className="py-4 px-5 text-sm">
-                    {p.highlight ? (
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-neon-green/10 border border-neon-green/30 text-neon-green font-bold font-mono text-xs tracking-wider">{p.trust}</span>
-                    ) : (
-                      <span className="text-text-muted font-body">{p.trust}</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Verification cost callout */}
-        <div className="glass-strong rounded-2xl p-8 max-w-3xl mx-auto text-center">
-          <p className="text-text-secondary font-body text-lg">
-            Chainlink verifies BLS aggregate signatures on-chain at{" "}
-            <span className="text-chainlink-blue font-mono font-bold">~400K gas</span>.
-            Chronicle uses Schnorr multisigs at{" "}
-            <span className="text-chronicle-teal font-mono font-bold">~150K gas</span>.
-            A ZK proof verifies at{" "}
-            <span className="text-neon-green font-mono font-bold">~250K gas</span>{" "}
-            -- cheaper than BLS, with no committee to trust.
+          <p className="text-text-secondary font-body mb-10 sm:mb-14 max-w-lg leading-relaxed">
+            Other oracles hide their costs behind vendor contracts and
+            governance votes. Here&apos;s the real comparison.
           </p>
-        </div>
+        </Reveal>
+
+        {/* Table */}
+        <Reveal>
+          <div className="bg-white border border-border-strong rounded-lg overflow-hidden mb-8">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted">
+                      Provider
+                    </th>
+                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted hidden sm:table-cell">
+                      Update cost
+                    </th>
+                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted hidden md:table-cell">
+                      On-chain gas
+                    </th>
+                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted hidden lg:table-cell">
+                      Vendor cost
+                    </th>
+                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted">
+                      Trust model
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {providers.map((p) => (
+                    <tr
+                      key={p.name}
+                      className={`border-b border-border/50 last:border-b-0 ${
+                        p.highlight ? "bg-accent-dim" : ""
+                      }`}
+                    >
+                      <td
+                        className={`py-3.5 px-4 sm:px-5 font-semibold font-body text-sm ${p.color}`}
+                      >
+                        {p.name}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-5 text-sm font-mono text-text-secondary hidden sm:table-cell">
+                        {p.cost}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-5 text-sm font-mono text-text-secondary hidden md:table-cell">
+                        {p.gas}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-5 text-sm text-text-secondary font-body hidden lg:table-cell">
+                        {p.vendor}
+                      </td>
+                      <td className="py-3.5 px-4 sm:px-5 text-sm">
+                        {p.highlight ? (
+                          <span className="text-accent font-bold font-mono">
+                            {p.trust}
+                          </span>
+                        ) : (
+                          <span className="text-text-muted font-body">
+                            {p.trust}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* Mathematics callout */}
+        <Reveal>
+          <div className="border-l-4 border-accent bg-white rounded-r-lg p-5 sm:p-6 max-w-xl">
+            <p className="text-xl sm:text-2xl font-display font-bold text-text-primary mb-2">
+              The only oracle where the trust model is &ldquo;mathematics.&rdquo;
+            </p>
+            <p className="text-text-secondary font-body text-sm leading-relaxed">
+              ZK proofs verify that the price was computed correctly from real
+              on-chain state. No committee of signers. No multisig. No
+              guardians. Just a proof anyone can verify.
+            </p>
+          </div>
+        </Reveal>
       </div>
     </section>
   );

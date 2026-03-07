@@ -1,6 +1,5 @@
 # Rust
 target/
-Cargo.lock
 
 # Foundry
 contracts/cache/
@@ -19,4 +18,21 @@ website/.vercel/
 
 # Environment
 .env
-.env.local
+.env.*
+!.env.example
+
+# Tool / IDE configs
+.agents/
+.claude/
+.pi/
+skills-lock.json
+
+# Internal docs
+IMPROVEMENT_PLAN.md
+SECURITY_REVIEW.md
+
+# Broadcast artifacts (contain deployment tx data)
+contracts/broadcast/
+
+# Keeper state
+keeper-state.json

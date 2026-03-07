@@ -42,6 +42,7 @@ contract ZkOracleChronicleAdapter is IChronicle, IToll {
     error NotTolled(address caller);
     error NotOwner();
     error NoRoundData();
+    error NegativePrice();
 
     modifier onlyTolled() {
         if (!_tolled[msg.sender]) revert NotTolled(msg.sender);
@@ -57,34 +58,28 @@ contract ZkOracleChronicleAdapter is IChronicle, IToll {
         oracle = _oracle;
         feedWat = _wat;
         owner = msg.sender;
-        // Deployer is tolled by default.
         _tolled[msg.sender] = true;
     }
 
     // ─── IChronicle ────────────────────────────────────────────────────
 
-    /// @notice Returns the feed identifier.
     function wat() external view override returns (bytes32) {
         return feedWat;
     }
 
-    /// @notice Returns the current price in 18-decimal fixed-point. Reverts if no data.
     function read() external view override onlyTolled returns (uint) {
         return _getPrice();
     }
 
-    /// @notice Returns current price and age (timestamp). Reverts if no data.
     function readWithAge() external view override onlyTolled returns (uint value, uint age) {
         (value, age) = _getPriceWithAge();
     }
 
-    /// @notice Returns price without reverting on absence.
     function tryRead() external view override onlyTolled returns (bool isValid, uint value) {
         if (oracle.currentRoundId() == 0) return (false, 0);
         return (true, _getPrice());
     }
 
-    /// @notice Returns price and age without reverting on absence.
     function tryReadWithAge() external view override onlyTolled returns (bool isValid, uint value, uint age) {
         if (oracle.currentRoundId() == 0) return (false, 0, 0);
         (value, age) = _getPriceWithAge();
@@ -93,17 +88,14 @@ contract ZkOracleChronicleAdapter is IChronicle, IToll {
 
     // ─── IToll ─────────────────────────────────────────────────────────
 
-    /// @notice Grant read access to `who`.
     function kiss(address who) external override onlyOwner {
         _tolled[who] = true;
     }
 
-    /// @notice Revoke read access from `who`.
     function diss(address who) external override onlyOwner {
         _tolled[who] = false;
     }
 
-    /// @notice Check if `who` has read access.
     function tolled(address who) external view override returns (bool) {
         return _tolled[who];
     }
@@ -119,6 +111,9 @@ contract ZkOracleChronicleAdapter is IChronicle, IToll {
         if (oracle.currentRoundId() == 0) revert NoRoundData();
 
         (, int256 answer,, uint256 updatedAt,) = oracle.latestRoundData();
+
+        // Ensure price is non-negative before casting.
+        if (answer < 0) revert NegativePrice();
 
         // Scale from oracle decimals to Chronicle's 18-decimal format.
         uint8 oracleDecimals = oracle.decimals();

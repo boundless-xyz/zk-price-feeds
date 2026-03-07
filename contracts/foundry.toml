@@ -3,8 +3,8 @@ src = "src"
 out = "out"
 libs = ["lib"]
 solc = "0.8.26"
-
-[profile.default.remappings]
-"risc0-ethereum/" = "lib/risc0-ethereum/contracts/src/"
-"risc0-steel/" = "lib/risc0-steel/contracts/src/"
-"openzeppelin/" = "lib/openzeppelin-contracts/contracts/"
+remappings = [
+    "risc0-ethereum/=lib/risc0-ethereum/contracts/src/",
+    "risc0-steel/=lib/steel/contracts/src/",
+    "openzeppelin/=lib/openzeppelin-contracts/contracts/",
+]

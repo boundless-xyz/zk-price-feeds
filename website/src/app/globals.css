@@ -1,139 +1,102 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0f0a1a;
-  --color-bg-card: rgba(255, 255, 255, 0.05);
-  --color-bg-card-solid: #1a1230;
-  --color-bg-card-hover: rgba(255, 255, 255, 0.1);
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-bright: rgba(255, 255, 255, 0.2);
+  /* Warm light palette */
+  --color-bg: #faf9f6;
+  --color-bg-surface: #f0eeea;
+  --color-bg-raised: #e6e3dc;
+  --color-bg-hover: #dbd7ce;
+  --color-border: rgba(28, 25, 23, 0.1);
+  --color-border-strong: rgba(28, 25, 23, 0.18);
 
-  /* Neon palette */
-  --color-neon-green: #39ff14;
-  --color-neon-cyan: #00e5ff;
-  --color-neon-blue: #4d7cff;
-  --color-neon-purple: #b347ff;
-  --color-neon-pink: #ff47ab;
-  --color-neon-magenta: #d946ef;
-  --color-neon-yellow: #ffe347;
-  --color-neon-orange: #ff8c00;
+  /* Accent — vibrant emerald */
+  --color-accent: #059669;
+  --color-accent-hover: #047857;
+  --color-accent-dim: rgba(5, 150, 105, 0.1);
+  --color-negative: #dc2626;
+  --color-negative-dim: rgba(220, 38, 38, 0.08);
 
-  --color-text-primary: #f0f0ff;
-  --color-text-secondary: #a0a0c0;
-  --color-text-muted: #606080;
+  /* Text — warm charcoal with readable muted */
+  --color-text-primary: #1c1917;
+  --color-text-secondary: #44403c;
+  --color-text-muted: #78716c;
 
-  /* Oracle providers */
+  /* Provider brand colors */
   --color-chainlink-blue: #375bd2;
   --color-pyth-purple: #6633ee;
   --color-redstone-red: #e84142;
   --color-chronicle-teal: #0dbfa8;
 
-  --font-family-display: "Permanent Marker", cursive;
-  --font-family-mono: "VT323", "JetBrains Mono", monospace;
-  --font-family-body: "Rubik", "Inter", sans-serif;
+  /* Code block (dark for contrast) */
+  --color-code-bg: #1c1917;
+  --color-code-surface: #292524;
+  --color-code-text: #e7e5e4;
+  --color-code-muted: #78716c;
+  --color-code-accent: #34d399;
+  --color-code-blue: #93c5fd;
+  --color-code-keyword: #c4b5fd;
+  --color-code-string: #fbbf24;
+
+  /* Typography */
+  --font-family-display: var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif;
+  --font-family-body: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  --font-family-mono: var(--font-jetbrains-mono), "JetBrains Mono", "SF Mono", monospace;
 }
 
 /* Animations */
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.6; }
-  50% { opacity: 1; }
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-.animate-glow-pulse {
-  animation: glow-pulse 2s ease-in-out infinite;
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out both;
 }
 
-.animate-float {
-  animation: float 3s ease-in-out infinite;
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out both;
 }
 
-/* Glassmorphism */
-.glass {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* FAQ accordion height transition */
+.faq-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
 }
 
-.glass-strong {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+.faq-panel[data-open="true"] {
+  grid-template-rows: 1fr;
 }
 
-/* Neon glow effects */
-.glow-green {
-  box-shadow: 0 0 20px rgba(57, 255, 20, 0.3), 0 0 60px rgba(57, 255, 20, 0.1);
-}
-.glow-cyan {
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3), 0 0 60px rgba(0, 229, 255, 0.1);
-}
-.glow-purple {
-  box-shadow: 0 0 20px rgba(179, 71, 255, 0.3), 0 0 60px rgba(179, 71, 255, 0.1);
+.faq-panel > div {
+  overflow: hidden;
 }
 
-/* Hover glow variants (for HowItWorks cards) */
-.hover-glow-green:hover {
-  box-shadow: 0 0 20px rgba(57, 255, 20, 0.3), 0 0 60px rgba(57, 255, 20, 0.1);
-}
-.hover-glow-cyan:hover {
-  box-shadow: 0 0 20px rgba(0, 229, 255, 0.3), 0 0 60px rgba(0, 229, 255, 0.1);
-}
-.hover-glow-purple:hover {
-  box-shadow: 0 0 20px rgba(179, 71, 255, 0.3), 0 0 60px rgba(179, 71, 255, 0.1);
-}
-
-/* Text glow */
-.text-glow-green {
-  text-shadow: 0 0 10px rgba(57, 255, 20, 0.6), 0 0 30px rgba(57, 255, 20, 0.3), 0 0 60px rgba(57, 255, 20, 0.1);
-}
-.text-glow-cyan {
-  text-shadow: 0 0 10px rgba(0, 229, 255, 0.6), 0 0 30px rgba(0, 229, 255, 0.3);
-}
-.text-glow-pink {
-  text-shadow: 0 0 10px rgba(255, 71, 171, 0.6), 0 0 30px rgba(255, 71, 171, 0.3);
-}
-.text-glow-purple {
-  text-shadow: 0 0 10px rgba(179, 71, 255, 0.6), 0 0 30px rgba(179, 71, 255, 0.3);
-}
-
-/* Gradient text */
-.gradient-text-green-cyan {
-  background: linear-gradient(135deg, #39ff14, #00e5ff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.gradient-text-pink-purple {
-  background: linear-gradient(135deg, #ff47ab, #b347ff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.gradient-text-cyan-purple {
-  background: linear-gradient(135deg, #00e5ff, #b347ff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-fade-in-up {
+    animation: none;
+  }
+  .faq-panel {
+    transition: none;
+  }
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #0f0a1a; }
-::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #d946ef; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-bg-raised); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-bg-hover); }
 
 ::selection {
-  background: rgba(217, 70, 239, 0.4);
-  color: #f0f0ff;
+  background: rgba(5, 150, 105, 0.2);
+  color: var(--color-text-primary);
 }
 
 html {
@@ -141,7 +104,7 @@ html {
 }
 
 body {
-  background: #0f0a1a;
-  color: #f0f0ff;
-  font-family: "Rubik", "Inter", sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-body);
 }

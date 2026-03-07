@@ -1,18 +1,12 @@
 use alloy_primitives::{Address, U256};
 use alloy_sol_types::{SolValue, sol};
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use risc0_steel::{
     Contract, EvmBlockHeader,
-    alloy::{
-        network::EthereumWallet,
-        providers::{Provider, ProviderBuilder},
-        signers::local::PrivateKeySigner,
-    },
     ethereum::{EthChainSpec, EthEvmEnv},
 };
-use risc0_ethereum_contracts::encode_seal;
-use risc0_zkvm::{Digest, ExecutorEnv, Prover, ProverOpts, default_executor, default_prover};
+use risc0_zkvm::{ExecutorEnv, default_executor};
 use tracing_subscriber::EnvFilter;
 use url::Url;
 use zk_oracle_methods::{ZK_ORACLE_GUEST_ELF, ZK_ORACLE_GUEST_ID};
@@ -26,6 +20,7 @@ sol! {
 
     interface IUniswapV3Pool {
         function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked);
+        function observe(uint32[] secondsAgos) external view returns (int56[] tickCumulatives, uint160[] secondsPerLiquidityCumulativeX128s);
     }
 
     interface IAlgebraPool {
@@ -63,16 +58,7 @@ sol! {
         uint32 numSamples;
         uint64 startBlock;
         uint64 endBlock;
-    }
-}
-
-sol! {
-    #[sol(rpc)]
-    interface IZkOracle {
-        function updatePrice(bytes calldata journalData, bytes calldata seal) external;
-        function imageId() external view returns (bytes32);
-        function currentRoundId() external view returns (uint80);
-        function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
+        uint64 timestamp;
     }
 }
 
@@ -108,6 +94,8 @@ struct OracleConfig {
     aux_bytes32: Option<[u8; 32]>,
     token0_decimals: Option<u8>,
     token1_decimals: Option<u8>,
+    twap_window: u32,
+    chain_spec: EthChainSpec,
 }
 
 /// ZK Price Oracle -- proves DEX prices across multiple blocks using Steel.
@@ -130,19 +118,23 @@ struct Args {
     #[arg(short, long, default_value = "10", env = "NUM_BLOCKS")]
     num_blocks: u32,
 
-    /// Sample every Nth block.
-    #[arg(short = 's', long, default_value = "1", env = "BLOCK_STRIDE")]
+    /// Sample every Nth block (wider stride = wider sampling window).
+    #[arg(short = 's', long, default_value = "10", env = "BLOCK_STRIDE")]
     stride: u64,
+
+    /// Number of blocks to lag behind latest (use finalized blocks).
+    #[arg(long, default_value = "64", env = "ANCHOR_LAG")]
+    anchor_lag: u64,
 
     /// Output price decimals.
     #[arg(short, long, default_value = "18", env = "PRICE_DECIMALS")]
     decimals: u8,
 
-    /// Token0 decimals (needed for V3/Algebra price math).
+    /// Token0 decimals (required for correct price normalization).
     #[arg(long, env = "TOKEN0_DECIMALS")]
     token0_decimals: Option<u8>,
 
-    /// Token1 decimals (needed for V3/Algebra price math).
+    /// Token1 decimals (required for correct price normalization).
     #[arg(long, env = "TOKEN1_DECIMALS")]
     token1_decimals: Option<u8>,
 
@@ -154,17 +146,13 @@ struct Args {
     #[arg(long, env = "AUX_BYTES32")]
     aux_bytes32: Option<String>,
 
-    /// Deployed ZkOracle contract address (for on-chain submission).
-    #[arg(long, env = "ORACLE_ADDRESS")]
-    oracle_address: Option<Address>,
+    /// TWAP window in seconds for V3 observe() (0 = use spot price).
+    #[arg(long, default_value = "1800", env = "TWAP_WINDOW")]
+    twap_window: u32,
 
-    /// Private key for on-chain submission.
-    #[arg(long, env = "ETH_WALLET_PRIVATE_KEY")]
-    private_key: Option<PrivateKeySigner>,
-
-    /// Execute-only mode (no proof).
-    #[arg(long, default_value = "false")]
-    execute_only: bool,
+    /// Chain ID for the source chain (auto-detected if not specified).
+    #[arg(long, env = "SOURCE_CHAIN_ID")]
+    chain_id: Option<u64>,
 }
 
 #[tokio::main]
@@ -175,16 +163,6 @@ async fn main() -> Result<()> {
         .init();
 
     let args = Args::parse();
-
-    let proving = !args.execute_only;
-    let submitting = args.oracle_address.is_some();
-
-    if submitting {
-        ensure!(
-            args.private_key.is_some(),
-            "--private-key is required when --oracle-address is set"
-        );
-    }
 
     let dex_name = match args.dex_type {
         DexType::UniswapV2 => "Uniswap V2",
@@ -202,41 +180,47 @@ async fn main() -> Result<()> {
     println!("  DEX:        {dex_name}");
     println!("  Samples:    {}", args.num_blocks);
     println!("  Stride:     {}", args.stride);
+    println!("  Anchor lag: {} blocks", args.anchor_lag);
     println!("  Decimals:   {}", args.decimals);
-    println!("  Mode:       {}", if submitting { "prove + submit" } else if proving { "prove only" } else { "execute only" });
+    if args.twap_window > 0 {
+        println!("  TWAP:       {}s window", args.twap_window);
+    }
     println!();
 
-    // Build provider.
-    let provider = if let Some(ref pk) = args.private_key {
-        ProviderBuilder::new()
-            .wallet(EthereumWallet::from(pk.clone()))
-            .connect_http(args.rpc_url.clone())
+    // Build chain spec.
+    use risc0_steel::revm::primitives::hardfork::SpecId;
+    use risc0_steel::config::ChainSpec;
+    let chain_spec: EthChainSpec = if let Some(cid) = args.chain_id {
+        match cid {
+            1 => risc0_steel::ethereum::ETH_MAINNET_CHAIN_SPEC.clone(),
+            11155111 => risc0_steel::ethereum::ETH_SEPOLIA_CHAIN_SPEC.clone(),
+            _ => ChainSpec::new_single(cid, SpecId::CANCUN),
+        }
     } else {
-        ProviderBuilder::new().connect_http(args.rpc_url.clone())
+        ChainSpec::new_single(8453, SpecId::CANCUN)
     };
 
-    let chain_id = provider.get_chain_id().await?;
-    let chain_spec = EthChainSpec::from_chain_id(chain_id)
-        .with_context(|| format!("Unsupported chain ID: {chain_id}"))?;
-
+    // Build initial env to get latest block number.
     let latest_env = EthEvmEnv::builder()
-        .provider(provider.clone())
-        .chain_spec(chain_spec.clone())
+        .rpc(args.rpc_url.clone())
+        .chain_spec(&chain_spec)
         .build()
         .await?;
     let latest_block = latest_env.header().number();
-    println!("Chain ID: {chain_id}");
     println!("Latest block: {latest_block}");
 
+    // Anchor to finalized blocks (lag behind latest).
+    let anchor_block = latest_block.saturating_sub(args.anchor_lag);
     let block_numbers: Vec<u64> = (0..args.num_blocks as u64)
-        .map(|i| latest_block - (i * args.stride))
+        .map(|i| anchor_block.saturating_sub(i * args.stride))
         .collect();
 
     println!(
-        "Sampling blocks {} to {} (stride {})",
+        "Sampling blocks {} to {} (stride {}, anchor lag {})",
         block_numbers.last().unwrap(),
         block_numbers[0],
-        args.stride
+        args.stride,
+        args.anchor_lag,
     );
 
     // Parse aux_bytes32 if provided.
@@ -253,9 +237,9 @@ async fn main() -> Result<()> {
 
     for &block_num in &block_numbers {
         let mut env = EthEvmEnv::builder()
-            .provider(provider.clone())
+            .rpc(args.rpc_url.clone())
             .block_number(block_num)
-            .chain_spec(chain_spec.clone())
+            .chain_spec(&chain_spec)
             .build()
             .await
             .with_context(|| format!("failed to build env for block {block_num}"))?;
@@ -269,14 +253,26 @@ async fn main() -> Result<()> {
                 let r0 = U256::from(returns.reserve0);
                 let r1 = U256::from(returns.reserve1);
                 let scale = U256::from(10u64).pow(U256::from(args.decimals));
-                let price = if !r0.is_zero() { (r1 * scale) / r0 } else { U256::ZERO };
+                let t0s = U256::from(10u64).pow(U256::from(args.token0_decimals.unwrap_or(18)));
+                let t1s = U256::from(10u64).pow(U256::from(args.token1_decimals.unwrap_or(18)));
+                let price = if !r0.is_zero() { (r1 * scale * t0s) / (r0 * t1s) } else { U256::ZERO };
                 println!("  Block {block_num}: reserve0={r0}, reserve1={r1}, price={price}");
             }
             DexType::UniswapV3 => {
-                let call = IUniswapV3Pool::slot0Call {};
-                let mut contract = Contract::preflight(args.pool, &mut env);
-                let returns = contract.call_builder(&call).call().await?;
-                println!("  Block {block_num}: sqrtPriceX96={}", returns.sqrtPriceX96);
+                if args.twap_window > 0 {
+                    let call = IUniswapV3Pool::observeCall {
+                        secondsAgos: vec![args.twap_window, 0],
+                    };
+                    let mut contract = Contract::preflight(args.pool, &mut env);
+                    let returns = contract.call_builder(&call).call().await?;
+                    println!("  Block {block_num}: TWAP observe ({}s window), tickCum[0]={}, tickCum[1]={}",
+                        args.twap_window, returns.tickCumulatives[0], returns.tickCumulatives[1]);
+                } else {
+                    let call = IUniswapV3Pool::slot0Call {};
+                    let mut contract = Contract::preflight(args.pool, &mut env);
+                    let returns = contract.call_builder(&call).call().await?;
+                    println!("  Block {block_num}: sqrtPriceX96={}", returns.sqrtPriceX96);
+                }
             }
             DexType::AlgebraV3 => {
                 let call = IAlgebraPool::globalStateCall {};
@@ -288,8 +284,8 @@ async fn main() -> Result<()> {
                 let call0 = ICurvePool::balancesCall { i: U256::ZERO };
                 let call1 = ICurvePool::balancesCall { i: U256::from(1u64) };
                 let mut contract = Contract::preflight(args.pool, &mut env);
-                let b0 = contract.call_builder(&call0).call().await?._0;
-                let b1 = contract.call_builder(&call1).call().await?._0;
+                let b0: U256 = contract.call_builder(&call0).call().await?;
+                let b1: U256 = contract.call_builder(&call1).call().await?;
                 println!("  Block {block_num}: balance0={b0}, balance1={b1}");
             }
             DexType::BalancerV2 => {
@@ -300,21 +296,21 @@ async fn main() -> Result<()> {
                 let vault_returns = vault_contract.call_builder(&vault_call).call().await?;
                 let weights_call = IBalancerWeightedPool::getNormalizedWeightsCall {};
                 let mut pool_contract = Contract::preflight(args.pool, &mut env);
-                let _weights = pool_contract.call_builder(&weights_call).call().await?;
+                let _weights: Vec<U256> = pool_contract.call_builder(&weights_call).call().await?;
                 println!("  Block {block_num}: balances={:?}", vault_returns.balances);
             }
             DexType::TraderJoeLB => {
                 let id_call = ILBPair::getActiveIdCall {};
                 let step_call = ILBPair::getBinStepCall {};
                 let mut contract = Contract::preflight(args.pool, &mut env);
-                let active_id = contract.call_builder(&id_call).call().await?._0;
-                let bin_step = contract.call_builder(&step_call).call().await?._0;
+                let active_id = contract.call_builder(&id_call).call().await?;
+                let bin_step: u16 = contract.call_builder(&step_call).call().await?;
                 println!("  Block {block_num}: activeId={active_id}, binStep={bin_step}");
             }
             DexType::DodoPMM => {
                 let call = IDODO::getMidPriceCall {};
                 let mut contract = Contract::preflight(args.pool, &mut env);
-                let mid_price = contract.call_builder(&call).call().await?._0;
+                let mid_price: U256 = contract.call_builder(&call).call().await?;
                 println!("  Block {block_num}: midPrice={mid_price}");
             }
         }
@@ -332,6 +328,8 @@ async fn main() -> Result<()> {
         aux_bytes32,
         token0_decimals: args.token0_decimals,
         token1_decimals: args.token1_decimals,
+        twap_window: args.twap_window,
+        chain_spec: chain_spec.clone(),
     };
 
     let num_blocks = args.num_blocks;
@@ -343,89 +341,28 @@ async fn main() -> Result<()> {
     }
     let executor_env = builder.build().context("failed to build executor env")?;
 
-    if args.execute_only {
-        println!("\nRunning the guest program (execute only, no proof)...");
-        let exec = default_executor();
-        let session_info = exec
-            .execute(executor_env, ZK_ORACLE_GUEST_ELF)
-            .context("failed to run executor")?;
+    println!("\nRunning the guest program (execute only, no proof)...");
+    let exec = default_executor();
+    let session_info = exec
+        .execute(executor_env, ZK_ORACLE_GUEST_ELF)
+        .context("failed to run executor")?;
 
-        let journal =
-            OracleJournal::abi_decode(session_info.journal.as_ref()).context("failed to decode journal")?;
+    let journal =
+        OracleJournal::abi_decode(session_info.journal.as_ref()).context("failed to decode journal")?;
 
-        println!("\nOracle Result:");
-        println!("  Pool:         {:#}", journal.pool);
-        println!("  DEX:          {dex_name}");
-        println!("  Median Price: {} ({}dp)", journal.medianPrice, journal.decimals);
-        println!("  Samples:      {}", journal.numSamples);
-        println!("  Block Range:  {} - {}", journal.startBlock, journal.endBlock);
-        println!("  Segments:     {}", session_info.segments.len());
-        println!(
-            "  Total Cycles: {}",
-            session_info.segments.iter().map(|s| 1 << s.po2).sum::<u64>()
-        );
-    } else {
-        println!("\nGenerating ZK proof (Groth16)...");
-        let prove_info = tokio::task::spawn_blocking(move || {
-            default_prover().prove_with_opts(
-                executor_env,
-                ZK_ORACLE_GUEST_ELF,
-                &ProverOpts::groth16(),
-            )
-        })
-        .await?
-        .context("failed to generate proof")?;
-
-        let receipt = prove_info.receipt;
-        let journal_bytes = receipt.journal.bytes.clone();
-
-        let journal =
-            OracleJournal::abi_decode(&journal_bytes).context("failed to decode journal")?;
-
-        println!("\nOracle Result:");
-        println!("  Pool:         {:#}", journal.pool);
-        println!("  DEX:          {dex_name}");
-        println!("  Median Price: {} ({}dp)", journal.medianPrice, journal.decimals);
-        println!("  Samples:      {}", journal.numSamples);
-        println!("  Block Range:  {} - {}", journal.startBlock, journal.endBlock);
-
-        let seal = encode_seal(&receipt).context("failed to encode seal")?;
-        println!("  Seal size:    {} bytes", seal.len());
-
-        if let Some(oracle_address) = args.oracle_address {
-            println!("\nSubmitting proof on-chain...");
-
-            let contract = IZkOracle::new(oracle_address, &provider);
-
-            let on_chain_image_id = contract.imageId().call().await?;
-            ensure!(
-                on_chain_image_id.0 == <[u8; 32]>::from(Digest::from(ZK_ORACLE_GUEST_ID)),
-                "Image ID mismatch between guest program and on-chain contract. Redeploy the contract with the correct image ID."
-            );
-
-            let call_builder = contract.updatePrice(journal_bytes.into(), seal.into());
-            let pending_tx = call_builder.send().await?;
-            let tx_hash = *pending_tx.tx_hash();
-            println!("  Tx sent: {tx_hash:#}");
-
-            let tx_receipt = pending_tx
-                .get_receipt()
-                .await
-                .with_context(|| format!("transaction did not confirm: {tx_hash}"))?;
-            ensure!(tx_receipt.status(), "transaction reverted: {tx_hash}");
-
-            let round_id = contract.currentRoundId().call().await?;
-            let latest = contract.latestRoundData().call().await?;
-
-            println!("\nPrice updated on-chain!");
-            println!("  Round:   {}", round_id.0);
-            println!("  Price:   {}", latest.answer);
-            println!("  Updated: {}", latest.updatedAt);
-            println!("  Tx:      {tx_hash:#}");
-        } else {
-            println!("\nProof generated successfully. Use --oracle-address to submit on-chain.");
-        }
-    }
+    println!("\nOracle Result:");
+    println!("  Pool:         {:#}", journal.pool);
+    println!("  DEX:          {dex_name}");
+    println!("  Median Price: {} ({}dp)", journal.medianPrice, journal.decimals);
+    println!("  Samples:      {} valid", journal.numSamples);
+    println!("  Block Range:  {} - {}", journal.startBlock, journal.endBlock);
+    println!("  Timestamp:    {}", journal.timestamp);
+    println!("  Segments:     {}", session_info.segments.len());
+    println!(
+        "  Total Cycles: {}",
+        session_info.segments.iter().map(|s| 1 << s.po2).sum::<u64>()
+    );
+    println!("  Image ID:     0x{}", hex::encode(<[u8; 32]>::from(risc0_zkvm::Digest::from(ZK_ORACLE_GUEST_ID))));
 
     Ok(())
 }

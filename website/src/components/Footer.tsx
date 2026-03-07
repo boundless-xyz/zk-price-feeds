@@ -1,55 +1,65 @@
-export default function Footer() {
-  return (
-    <footer className="py-28 px-6 relative overflow-hidden">
-      {/* Vaporwave grid */}
-      <div className="absolute bottom-0 left-0 right-0 h-[40vh] overflow-hidden opacity-20" aria-hidden="true">
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(57,255,20,0.5) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0,229,255,0.5) 1px, transparent 1px)
-            `,
-            backgroundSize: "60px 60px",
-            transform: "perspective(500px) rotateX(60deg)",
-            transformOrigin: "center top",
-          }}
-        />
-      </div>
+"use client";
 
-      <div className="max-w-4xl mx-auto text-center relative z-10">
-        <h2 className="text-4xl sm:text-6xl font-display tracking-wide text-text-primary mb-2">
-          <span className="block">Deploy a feed in</span>
-          <span className="block gradient-text-green-cyan mt-2">5 minutes.</span>
+import { useState } from "react";
+
+export default function Footer() {
+  const [copied, setCopied] = useState(false);
+
+  const command =
+    "git clone https://github.com/boundless-xyz/zk-oracle && cd zk-oracle && POOL_ADDRESS=0x... RPC_URL=https://... cargo run --release";
+
+  function copyCommand() {
+    navigator.clipboard.writeText(command);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <footer className="py-20 sm:py-28 px-5 sm:px-8 bg-code-bg text-code-text">
+      <div className="max-w-5xl mx-auto">
+        <h2 className="text-3xl sm:text-4xl font-display font-bold tracking-tight mb-8">
+          Deploy a feed in 5 minutes.
         </h2>
 
-        {/* Code block */}
-        <div className="glass-strong rounded-2xl overflow-hidden text-left max-w-2xl mx-auto mb-12 mt-10 glow-green">
-          <div className="flex items-center gap-3 px-6 py-3.5 border-b border-white/10">
-            <div className="flex gap-2" aria-hidden="true">
-              <div className="w-3.5 h-3.5 rounded-full bg-neon-pink/70" />
-              <div className="w-3.5 h-3.5 rounded-full bg-neon-yellow/70" />
-              <div className="w-3.5 h-3.5 rounded-full bg-neon-green/70" />
+        {/* Code block with copy */}
+        <div className="bg-code-surface rounded-lg overflow-hidden max-w-lg mb-10 relative group">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/5">
+            <div className="flex gap-1.5" aria-hidden="true">
+              <div className="w-2.5 h-2.5 rounded-full bg-code-muted/40" />
+              <div className="w-2.5 h-2.5 rounded-full bg-code-muted/40" />
+              <div className="w-2.5 h-2.5 rounded-full bg-code-muted/40" />
             </div>
-            <span className="text-text-muted text-sm font-mono tracking-wider">terminal</span>
+            <span className="text-code-muted text-xs font-mono ml-2">
+              terminal
+            </span>
+            <button
+              onClick={copyCommand}
+              className="ml-auto text-code-muted hover:text-code-text text-xs font-mono transition-colors opacity-0 group-hover:opacity-100"
+              aria-label="Copy command"
+            >
+              {copied ? "Copied!" : "Copy"}
+            </button>
           </div>
-          <pre className="p-6 sm:p-8 overflow-x-auto text-sm sm:text-base leading-relaxed font-mono">
+          <pre
+            className="p-4 sm:p-6 overflow-x-auto text-xs sm:text-sm leading-relaxed font-mono cursor-pointer"
+            onClick={copyCommand}
+          >
             <code>
-              <span className="text-neon-green">$</span>
-              <span className="text-text-primary">
+              <span className="text-code-accent">$</span>
+              <span className="text-code-text">
                 {" "}
                 git clone https://github.com/boundless-xyz/zk-oracle
               </span>
               {"\n"}
-              <span className="text-neon-green">$</span>
-              <span className="text-text-primary"> cd zk-oracle</span>
+              <span className="text-code-accent">$</span>
+              <span className="text-code-text"> cd zk-oracle</span>
               {"\n\n"}
-              <span className="text-text-muted">
+              <span className="text-code-muted">
                 # Set your pool address and run
               </span>
               {"\n"}
-              <span className="text-neon-green">$</span>
-              <span className="text-text-primary">
+              <span className="text-code-accent">$</span>
+              <span className="text-code-text">
                 {" "}
                 POOL_ADDRESS=0x... RPC_URL=https://... cargo run --release
               </span>
@@ -58,13 +68,12 @@ export default function Footer() {
         </div>
 
         {/* Links */}
-        <div className="flex items-center justify-center gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap mb-12">
           <a
             href="https://github.com/boundless-xyz/zk-oracle"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-8 py-4 rounded-xl font-bold text-lg text-bg transition-all duration-300 hover:-translate-y-1 glow-green"
-            style={{ background: "linear-gradient(135deg, #39ff14, #00e5ff)" }}
+            className="px-5 py-2.5 rounded-md bg-accent text-white font-semibold text-sm transition-colors hover:bg-accent-hover"
           >
             GitHub
           </a>
@@ -72,7 +81,7 @@ export default function Footer() {
             href="https://docs.beboundless.xyz"
             target="_blank"
             rel="noopener noreferrer"
-            className="glass px-8 py-4 rounded-xl text-text-primary font-bold text-lg hover:bg-white/10 transition-all duration-300 hover:-translate-y-1"
+            className="px-5 py-2.5 rounded-md border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
           >
             Docs
           </a>
@@ -80,20 +89,51 @@ export default function Footer() {
             href="https://beboundless.xyz"
             target="_blank"
             rel="noopener noreferrer"
-            className="glass px-8 py-4 rounded-xl text-text-primary font-bold text-lg hover:bg-white/10 transition-all duration-300 hover:-translate-y-1"
+            className="px-5 py-2.5 rounded-md border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
           >
             Boundless
           </a>
         </div>
 
-        <div className="mt-24 pt-8 border-t border-white/10">
-          <p className="text-text-muted text-sm font-body">
-            Built with{" "}
-            <span className="text-neon-green font-bold">Steel</span> +{" "}
-            <span className="text-neon-cyan font-bold">RISC Zero</span> +{" "}
-            <span className="text-neon-magenta font-bold">Boundless</span>
-          </p>
-        </div>
+        <a
+          href="https://beboundless.xyz"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 text-code-muted hover:text-code-text transition-colors text-sm font-body mb-6"
+        >
+          Powered by
+          <span className="font-display font-bold text-base text-code-text/80">Boundless</span>
+        </a>
+
+        <p className="text-code-muted text-sm font-body">
+          Built with{" "}
+          <a
+            href="https://github.com/risc0/risc0"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-code-text/70 hover:text-code-text transition-colors"
+          >
+            Steel
+          </a>{" "}
+          +{" "}
+          <a
+            href="https://risczero.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-code-text/70 hover:text-code-text transition-colors"
+          >
+            RISC Zero
+          </a>{" "}
+          +{" "}
+          <a
+            href="https://beboundless.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-code-text/70 hover:text-code-text transition-colors"
+          >
+            Boundless
+          </a>
+        </p>
       </div>
     </footer>
   );

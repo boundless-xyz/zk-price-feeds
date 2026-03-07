@@ -22,22 +22,52 @@ interface IAggregatorV3Interface {
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);
 }
 
+/// @title IBoundlessMarketCallback
+/// @notice Interface for handling proof callbacks from BoundlessMarket.
+interface IBoundlessMarketCallback {
+    function handleProof(bytes32 _imageId, bytes calldata journal, bytes calldata seal) external;
+}
+
 /// @title ZkOracle
 /// @notice A ZK-verified price oracle implementing the Chainlink AggregatorV3Interface.
 /// @dev Prices are proven from on-chain DEX reserves using Steel (RISC Zero zkVM).
-///      Anyone can submit a proof to update the price feed.
-contract ZkOracle is IAggregatorV3Interface {
+///      Supports both direct proof submission and Boundless Market callback delivery.
+contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
+    // ─── Immutables ──────────────────────────────────────────────────────
+
     /// @notice RISC Zero verifier contract.
     IRiscZeroVerifier public immutable VERIFIER;
 
     /// @notice Image ID of the ZK oracle guest program.
-    bytes32 public immutable IMAGE_ID;
+    bytes32 public imageId;
 
     /// @notice Address of the DEX pool being tracked.
     address public immutable POOL;
 
     /// @notice Price decimals.
     uint8 internal immutable PRICE_DECIMALS;
+
+    /// @notice Whether to validate Steel commitments on-chain.
+    /// @dev Must be true for same-chain deployments. Set false for cross-chain testnet only.
+    bool public immutable VALIDATE_COMMITMENT;
+
+    /// @notice Boundless Market contract address (authorized callback sender).
+    /// @dev Set to address(0) to disable callback path.
+    address public immutable BOUNDLESS_MARKET;
+
+    // ─── Safety parameters ───────────────────────────────────────────────
+
+    /// @notice Maximum deviation from last price (in basis points). 0 = disabled.
+    uint256 public maxDeviationBps;
+
+    /// @notice Minimum valid samples required in a proof.
+    uint32 public minSamples;
+
+    /// @notice Maximum staleness: reject proofs if block.number - endBlock exceeds this.
+    /// @dev Set to 0 to disable (useful when oracle chain differs from source chain).
+    uint64 public maxBlockAge;
+
+    // ─── State ───────────────────────────────────────────────────────────
 
     /// @notice Human-readable description (e.g. "ETH / USDC").
     string internal feedDescription;
@@ -49,6 +79,7 @@ contract ZkOracle is IAggregatorV3Interface {
         uint64 endBlock;
         uint32 numSamples;
         uint64 updatedAt;
+        uint64 timestamp;
     }
 
     /// @notice Current round ID (incremented on each update).
@@ -57,8 +88,22 @@ contract ZkOracle is IAggregatorV3Interface {
     /// @notice Mapping of round ID to round data.
     mapping(uint80 => Round) internal rounds;
 
-    /// @notice Emitted when the price feed is updated.
+    /// @notice Owner for admin operations.
+    address public owner;
+
+    /// @notice Emergency pause flag.
+    bool public paused;
+
+    // ─── Events ──────────────────────────────────────────────────────────
+
     event PriceUpdated(uint80 indexed roundId, int256 answer, uint64 startBlock, uint64 endBlock, uint32 numSamples);
+    event Paused(address account);
+    event Unpaused(address account);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event SafetyParamsUpdated(uint256 maxDeviationBps, uint32 minSamples, uint64 maxBlockAge);
+    event ImageIdUpdated(bytes32 indexed oldImageId, bytes32 indexed newImageId);
+
+    // ─── Errors ──────────────────────────────────────────────────────────
 
     /// @notice Journal structure matching the guest program output.
     struct OracleJournal {
@@ -69,54 +114,168 @@ contract ZkOracle is IAggregatorV3Interface {
         uint32 numSamples;
         uint64 startBlock;
         uint64 endBlock;
+        uint64 timestamp;
     }
 
     error InvalidPool(address expected, address received);
     error InvalidDecimals(uint8 expected, uint8 received);
     error RoundNotFound(uint80 roundId);
     error NoRoundData();
+    error OraclePaused();
+    error NotOwner();
+    error InsufficientSamples(uint32 got, uint32 required);
+    error PriceOverflow();
+    error StaleBlockRange(uint64 endBlock, uint64 lastEndBlock);
+    error ProofTooOld(uint64 endBlock, uint64 currentBlock, uint64 maxAge);
+    error DeviationTooLarge(uint256 newPrice, uint256 lastPrice, uint256 maxBps);
+    error InvalidCallbackSender();
+    error InvalidImageId();
+
+    // ─── Modifiers ───────────────────────────────────────────────────────
+
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert NotOwner();
+        _;
+    }
+
+    modifier whenNotPaused() {
+        if (paused) revert OraclePaused();
+        _;
+    }
+
+    // ─── Constructor ─────────────────────────────────────────────────────
 
     constructor(
         IRiscZeroVerifier _verifier,
         bytes32 _imageId,
         address _pool,
         uint8 _decimals,
-        string memory _description
+        string memory _description,
+        bool _validateCommitment,
+        address _boundlessMarket
     ) {
         VERIFIER = _verifier;
-        IMAGE_ID = _imageId;
+        imageId = _imageId;
         POOL = _pool;
         PRICE_DECIMALS = _decimals;
+        VALIDATE_COMMITMENT = _validateCommitment;
+        BOUNDLESS_MARKET = _boundlessMarket;
         feedDescription = _description;
+        owner = msg.sender;
+
+        // Defaults: 50% max deviation, 3 min samples, no block age check
+        maxDeviationBps = 5000;
+        minSamples = 3;
+        maxBlockAge = 0;
     }
 
-    /// @notice Submit a ZK proof to update the price feed.
+    // ─── Admin ───────────────────────────────────────────────────────────
+
+    function pause() external onlyOwner {
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    function unpause() external onlyOwner {
+        paused = false;
+        emit Unpaused(msg.sender);
+    }
+
+    function transferOwnership(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "Zero address");
+        emit OwnershipTransferred(owner, newOwner);
+        owner = newOwner;
+    }
+
+    function setSafetyParams(uint256 _maxDeviationBps, uint32 _minSamples, uint64 _maxBlockAge) external onlyOwner {
+        maxDeviationBps = _maxDeviationBps;
+        minSamples = _minSamples;
+        maxBlockAge = _maxBlockAge;
+        emit SafetyParamsUpdated(_maxDeviationBps, _minSamples, _maxBlockAge);
+    }
+
+    function setImageId(bytes32 _imageId) external onlyOwner {
+        bytes32 oldImageId = imageId;
+        imageId = _imageId;
+        emit ImageIdUpdated(oldImageId, _imageId);
+    }
+
+    // ─── Core: Direct submission ──────────────────────────────────────────
+
+    /// @notice Submit a ZK proof to update the price feed (direct path).
     /// @param journalData ABI-encoded OracleJournal from the guest program.
     /// @param seal The RISC Zero proof seal.
-    function updatePrice(bytes calldata journalData, bytes calldata seal) external {
-        // Decode the journal.
+    function updatePrice(bytes calldata journalData, bytes calldata seal) external whenNotPaused {
+        bytes32 journalHash = sha256(journalData);
+        VERIFIER.verify(seal, imageId, journalHash);
+        _applyPriceUpdate(journalData);
+    }
+
+    // ─── Core: Boundless callback ─────────────────────────────────────────
+
+    /// @notice Handle proof delivered by the Boundless Market callback mechanism.
+    /// @dev Called by BoundlessMarket after proof fulfillment. The market already verified
+    ///      the proof, but we re-verify for defense-in-depth.
+    function handleProof(bytes32 _imageId, bytes calldata journal, bytes calldata seal) external whenNotPaused {
+        if (msg.sender != BOUNDLESS_MARKET) revert InvalidCallbackSender();
+        if (_imageId != imageId) revert InvalidImageId();
+        bytes32 journalHash = sha256(journal);
+        VERIFIER.verify(seal, imageId, journalHash);
+        _applyPriceUpdate(journal);
+    }
+
+    // ─── Internal ─────────────────────────────────────────────────────────
+
+    /// @notice Decode journal, validate, and store the new price round.
+    function _applyPriceUpdate(bytes calldata journalData) internal {
         OracleJournal memory journal = abi.decode(journalData, (OracleJournal));
 
-        // Validate the journal matches this oracle's configuration.
         if (journal.pool != POOL) revert InvalidPool(POOL, journal.pool);
         if (journal.journalDecimals != PRICE_DECIMALS) revert InvalidDecimals(PRICE_DECIMALS, journal.journalDecimals);
 
-        // Validate the Steel commitment (proves the data came from actual on-chain state).
-        Steel.Commitment memory commitment = abi.decode(journal.steelCommitment, (Steel.Commitment));
-        require(Steel.validateCommitment(commitment), "Invalid Steel commitment");
+        if (VALIDATE_COMMITMENT) {
+            Steel.Commitment memory commitment = abi.decode(journal.steelCommitment, (Steel.Commitment));
+            require(Steel.validateCommitment(commitment), "Invalid Steel commitment");
+        }
 
-        // Verify the ZK proof.
-        bytes32 journalHash = sha256(journalData);
-        VERIFIER.verify(seal, IMAGE_ID, journalHash);
+        if (journal.numSamples < minSamples) {
+            revert InsufficientSamples(journal.numSamples, minSamples);
+        }
 
-        // Store the new round.
+        if (journal.medianPrice > uint256(type(int256).max)) revert PriceOverflow();
+
+        if (currentRoundId > 0) {
+            if (journal.endBlock <= rounds[currentRoundId].endBlock) {
+                revert StaleBlockRange(journal.endBlock, rounds[currentRoundId].endBlock);
+            }
+        }
+
+        if (maxBlockAge > 0 && block.number > journal.endBlock) {
+            if (block.number - journal.endBlock > maxBlockAge) {
+                revert ProofTooOld(journal.endBlock, uint64(block.number), maxBlockAge);
+            }
+        }
+
+        if (currentRoundId > 0 && maxDeviationBps > 0) {
+            int256 lastPrice = rounds[currentRoundId].answer;
+            if (lastPrice > 0) {
+                uint256 absLast = uint256(lastPrice);
+                uint256 absNew = journal.medianPrice;
+                uint256 absDiff = absNew > absLast ? absNew - absLast : absLast - absNew;
+                if (absDiff * 10000 > absLast * maxDeviationBps) {
+                    revert DeviationTooLarge(absNew, absLast, maxDeviationBps);
+                }
+            }
+        }
+
         currentRoundId++;
         rounds[currentRoundId] = Round({
             answer: int256(journal.medianPrice),
             startBlock: journal.startBlock,
             endBlock: journal.endBlock,
             numSamples: journal.numSamples,
-            updatedAt: uint64(block.timestamp)
+            updatedAt: uint64(block.timestamp),
+            timestamp: journal.timestamp
         });
 
         emit PriceUpdated(currentRoundId, int256(journal.medianPrice), journal.startBlock, journal.endBlock, journal.numSamples);
@@ -136,7 +295,7 @@ contract ZkOracle is IAggregatorV3Interface {
 
     /// @inheritdoc IAggregatorV3Interface
     function version() external pure override returns (uint256) {
-        return 1;
+        return 2;
     }
 
     /// @inheritdoc IAggregatorV3Interface
@@ -152,7 +311,7 @@ contract ZkOracle is IAggregatorV3Interface {
         return (
             _roundId,
             round.answer,
-            uint256(round.startBlock), // startedAt = start block number
+            uint256(round.timestamp),
             uint256(round.updatedAt),
             _roundId
         );
@@ -171,7 +330,7 @@ contract ZkOracle is IAggregatorV3Interface {
         return (
             currentRoundId,
             round.answer,
-            uint256(round.startBlock),
+            uint256(round.timestamp),
             uint256(round.updatedAt),
             currentRoundId
         );
@@ -183,15 +342,10 @@ contract ZkOracle is IAggregatorV3Interface {
     function getRoundMetadata(uint80 _roundId)
         external
         view
-        returns (uint64 startBlock, uint64 endBlock, uint32 numSamples, uint64 updatedAt)
+        returns (uint64 startBlock, uint64 endBlock, uint32 numSamples, uint64 updatedAt, uint64 timestamp)
     {
         Round storage round = rounds[_roundId];
         if (round.updatedAt == 0) revert RoundNotFound(_roundId);
-        return (round.startBlock, round.endBlock, round.numSamples, round.updatedAt);
-    }
-
-    /// @notice Returns the image ID used for proof verification.
-    function imageId() external view returns (bytes32) {
-        return IMAGE_ID;
+        return (round.startBlock, round.endBlock, round.numSamples, round.updatedAt, round.timestamp);
     }
 }

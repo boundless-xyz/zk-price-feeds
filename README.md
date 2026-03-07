@@ -1,279 +1,203 @@
-# ZK Price Feeds
+# ZK Oracle
 
-ZK-verified price feeds for any ERC-20 token with a DEX pool. Trustless, cost-efficient, and compatible with existing oracle standards.
+ZK-verified price feeds for any ERC-20 token with a DEX pool. No vendor approval, no subscriptions, no permission needed. ~$0.01 per update on L2.
 
-## What is this?
+Reads on-chain DEX reserves inside the [RISC Zero](https://risczero.com) zkVM, computes a manipulation-resistant median price, and posts it on-chain with a ZK proof. Proof generation is handled by [Boundless](https://boundless.xyz).
 
-A ZK oracle that reads Uniswap V2 pool reserves across multiple blocks inside a [RISC Zero](https://risczero.com) zkVM, computes a manipulation-resistant median price, and posts it on-chain with a proof. No committees, no multisigs -- just math.
+Drop-in compatible with Chainlink (`AggregatorV3Interface`), Pyth, RedStone, and Chronicle -- your existing protocol code works with zero changes.
 
-**Drop-in adapters** for Chainlink, Pyth, RedStone, and Chronicle mean your existing protocol code works with zero changes.
-
-## Architecture
-
-```
-                  ┌──────────────────────────────────────────────┐
-                  │  Guest Program (zkVM)                        │
-                  │  * Reads getReserves() across N blocks       │
-                  │  * Computes median price                     │
-                  │  * Commits journal with proof                │
-                  └──────────────────────┬───────────────────────┘
-                                         │ ZK Proof + Journal
-                    ┌────────────────────┤
-                    │                    │
-                    ▼                    ▼
-         ┌──────────────────┐  ┌─────────────────────────────────┐
-         │  Boundless Market │  │  Local Prover                   │
-         │  (recommended)    │  │  cargo run --release            │
-         └────────┬─────────┘  └──────────────┬──────────────────┘
-                  │                            │
-                  └────────────┬───────────────┘
-                               │ journal + seal
-                               ▼
-         ┌─────────────────────────────────────────────────────┐
-         │  ZkOracle.sol (on-chain)                            │
-         │  * Verifies ZK proof via RISC Zero verifier         │
-         │  * Validates Steel commitment (real chain state)    │
-         │  * Stores price rounds                              │
-         │  * Implements Chainlink AggregatorV3Interface       │
-         └──────────────────────┬──────────────────────────────┘
-                                │
-         ┌──────────┬───────────┼───────────┬──────────────┐
-         ▼          ▼           ▼           ▼              ▼
-      Chainlink  PythAdapter  Redstone   Chronicle     (direct)
-      (built-in) IPyth       Adapter     Adapter       latestRoundData()
-                              IRedstone  IChronicle
-```
-
-## Project Structure
-
-```
-├── contracts/
-│   └── src/
-│       ├── ZkOracle.sol              # Core oracle + Chainlink interface
-│       └── adapters/
-│           ├── PythAdapter.sol       # IPyth drop-in
-│           ├── RedstoneAdapter.sol   # IRedstoneAdapter drop-in
-│           └── ChronicleAdapter.sol  # IChronicle + IToll drop-in
-├── methods/
-│   └── guest/src/main.rs            # zkVM guest program
-├── host/src/bin/
-│   ├── main.rs                      # CLI: local prove + on-chain submit
-│   ├── boundless.rs                 # CLI: prove via Boundless Market
-│   └── benchmark.rs                 # Benchmarking tool
-├── scripts/
-│   └── benchmark_all.py             # Multi-pair benchmark script
-└── website/                         # Marketing site (Next.js)
-```
-
-## Quick Start
+## Get Started
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (1.81+)
-- [RISC Zero toolchain](https://dev.risczero.com/api/zkvm/install) (`rzup install`)
-- [Foundry](https://book.getfoundry.sh/getting-started/installation) (for Solidity)
-- An Ethereum RPC URL (Alchemy, Infura, etc.)
+- [Rust](https://rustup.rs/) 1.89+
+- [Foundry](https://getfoundry.sh/)
+- A funded wallet on Base (or your target chain)
+- A [Pinata](https://app.pinata.cloud/) JWT for IPFS storage (free tier works)
 
-### 1. Test locally (execute only, no proof)
+### 1. Clone and build
 
 ```bash
 git clone https://github.com/boundless-xyz/zk-oracle
 cd zk-oracle
-
-# Execute the guest program without generating a ZK proof.
-# Fast -- good for testing the computation is correct.
-cargo run --release -- \
-  --rpc-url $RPC_URL \
-  --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
-  --num-blocks 10 \
-  --decimals 18 \
-  --execute-only
+cargo build --release
 ```
 
-### 2. Generate a ZK proof
+> First build compiles the zkVM guest program and takes a few minutes.
+
+### 2. Run the setup wizard
 
 ```bash
-# Generate a Groth16 proof (requires RISC Zero prover).
-# Takes ~15 seconds. Outputs journal + seal.
-cargo run --release -- \
-  --rpc-url $RPC_URL \
-  --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
-  --num-blocks 10 \
-  --decimals 18
+cargo run --release --bin wizard
 ```
 
-### 3. Deploy the oracle contract
+The wizard walks you through everything: chain selection, pool address, token detection, `.env` generation, and contract deployment. At the end you'll have a deployed oracle and a ready-to-go config.
+
+### 3. Start the keeper
 
 ```bash
-cd contracts
-forge install
-
-forge create src/ZkOracle.sol:ZkOracle \
-  --constructor-args \
-    <RISC_ZERO_VERIFIER_ADDRESS> \
-    <IMAGE_ID> \
-    <POOL_ADDRESS> \
-    18 \
-    "WETH / USDC" \
-  --rpc-url $RPC_URL \
-  --private-key $PRIVATE_KEY
+cargo run --release --bin keeper
 ```
 
-### 4. Prove and submit on-chain (self-prove)
-
-```bash
-# Generate proof locally AND submit it to the ZkOracle contract.
-# Full pipeline: read reserves -> prove -> verify on-chain -> store price.
-cargo run --release -- \
-  --rpc-url $RPC_URL \
-  --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
-  --num-blocks 10 \
-  --decimals 18 \
-  --oracle-address <DEPLOYED_ZK_ORACLE_ADDRESS> \
-  --private-key $ETH_WALLET_PRIVATE_KEY
-```
-
-The host will:
-1. Fetch reserves across N blocks via Steel
-2. Generate a Groth16 ZK proof (~15 seconds)
-3. Verify the on-chain contract's image ID matches
-4. Call `updatePrice(journal, seal)` on-chain
-5. Confirm the transaction and print the new price round
-
-### 5. Prove via Boundless Market (recommended)
-
-Instead of running a local prover, submit to the [Boundless Market](https://beboundless.xyz) where provers compete to fulfill your request. Cheaper and faster than self-proving.
-
-```bash
-# Set up Boundless credentials
-export RPC_URL="https://..."
-export PRIVATE_KEY="your-key"
-export PINATA_JWT="your-pinata-jwt"  # for uploading the ELF
-
-# Submit proof request to Boundless, wait for fulfillment, update on-chain
-cargo run --release --bin boundless -- \
-  --rpc-url $RPC_URL \
-  --private-key $PRIVATE_KEY \
-  --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
-  --oracle-address <DEPLOYED_ZK_ORACLE_ADDRESS> \
-  --num-blocks 10 \
-  --decimals 18 \
-  --storage-uploader pinata
-```
-
-The Boundless CLI will:
-1. Fetch reserves across N blocks via Steel
-2. Upload the guest program ELF to IPFS via Pinata
-3. Submit a proof request to the Boundless Market
-4. Wait for a prover to fulfill the request (~15 seconds)
-5. Take the journal + seal from the fulfilled proof
-6. Call `updatePrice(journal, seal)` on the ZkOracle contract
-7. Confirm the transaction and print the new price round
-
-If you've already uploaded the ELF, pass `--program-url` to skip re-uploading:
-
-```bash
-cargo run --release --bin boundless -- \
-  --rpc-url $RPC_URL \
-  --private-key $PRIVATE_KEY \
-  --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
-  --oracle-address <DEPLOYED_ZK_ORACLE_ADDRESS> \
-  --num-blocks 10 \
-  --program-url "https://gateway.pinata.cloud/ipfs/Qm..."
-```
-
-## Oracle Adapters
-
-### Chainlink (built-in)
-
-`ZkOracle` directly implements `AggregatorV3Interface`. No adapter needed.
-
-```solidity
-AggregatorV3Interface feed = AggregatorV3Interface(zkOracleAddress);
-(, int256 price, , uint256 updatedAt, ) = feed.latestRoundData();
-```
-
-### Pyth
-
-Deploy `ZkOraclePythAdapter` pointing at your `ZkOracle`:
-
-```solidity
-import {ZkOraclePythAdapter} from "./adapters/PythAdapter.sol";
-
-// Deploy
-ZkOraclePythAdapter adapter = new ZkOraclePythAdapter(oracle, 60); // 60s valid period
-
-// Use exactly like Pyth
-PythPrice memory p = IPyth(address(adapter)).getPriceUnsafe(adapter.priceId());
-int64 price = p.price;
-```
-
-### RedStone
-
-Deploy `ZkOracleRedstoneAdapter` pointing at your `ZkOracle`:
-
-```solidity
-import {ZkOracleRedstoneAdapter} from "./adapters/RedstoneAdapter.sol";
-
-// Deploy with data feed ID (e.g. bytes32("ETH"))
-ZkOracleRedstoneAdapter adapter = new ZkOracleRedstoneAdapter(oracle, bytes32("ETH"));
-
-// Use exactly like RedStone
-uint256 price = IRedstoneAdapter(address(adapter)).getValueForDataFeed(bytes32("ETH"));
-```
-
-### Chronicle
-
-Deploy `ZkOracleChronicleAdapter` pointing at your `ZkOracle`:
-
-```solidity
-import {ZkOracleChronicleAdapter} from "./adapters/ChronicleAdapter.sol";
-
-// Deploy with feed identifier
-ZkOracleChronicleAdapter adapter = new ZkOracleChronicleAdapter(oracle, bytes32("ETH/USD"));
-
-// Whitelist your protocol (Chronicle requires toll access)
-adapter.kiss(yourProtocolAddress);
-
-// Use exactly like Chronicle
-uint price = IChronicle(address(adapter)).read(); // 18-decimal fixed-point
-```
+The keeper watches the pool, detects when an update is needed (heartbeat or price deviation), and submits ZK proofs automatically. It picks up config from the `.env` the wizard generated.
 
 ## How It Works
 
-1. **Read**: The zkVM guest program reads `getReserves()` from a Uniswap V2 pair across N blocks using [Steel](https://github.com/boundless-xyz/steel). Every storage read is cryptographically tied to actual Ethereum state.
+```
+  DEX Pool (on-chain)          Boundless Market
+        │                            │
+        ▼                            ▼
+  ┌───────────┐  proof request  ┌──────────┐
+  │  Keeper   │────────────────>│  Provers │
+  │           │<────────────────│          │
+  └───────────┘  callback/proof └──────────┘
+        │
+        ▼
+  ┌──────────────────────────────┐
+  │  ZkOracle.sol                │
+  │  verify proof → store price  │
+  │  AggregatorV3Interface       │
+  └──────────────────────────────┘
+```
 
-2. **Prove**: The guest computes the median price and the zkVM generates a Groth16 proof. ~73M cycles, ~15 seconds proving time, ~$0.004 proving cost via [Boundless](https://beboundless.xyz).
+1. **Sample** -- The keeper reads pool reserves across N blocks via [Steel](https://github.com/risc0/risc0-ethereum/tree/main/crates/steel) storage proofs
+2. **Prove** -- The guest program runs inside the zkVM, computes per-block prices, takes the median, and generates a ZK proof via Boundless (~1 min)
+3. **Verify** -- The oracle contract verifies the proof on-chain, validates the Steel commitment, runs safety checks, and stores the new price
 
-3. **Verify**: `ZkOracle.sol` verifies the proof on-chain (~250K gas) and stores the new price round. Your protocol calls `latestRoundData()` or whichever adapter interface you prefer.
+### Reading the feed
 
-### Flash Loan Resistance
+```solidity
+// Works exactly like Chainlink
+AggregatorV3Interface feed = AggregatorV3Interface(oracleAddress);
+(, int256 price, , uint256 updatedAt, ) = feed.latestRoundData();
+```
 
-The oracle computes the median across N blocks (default 10, configurable 5-100). A flash loan manipulates price within a single transaction. To manipulate this oracle, an attacker would need to control pool reserves across a majority of sampled blocks -- costing tens of millions in capital at risk over multiple minutes.
+## Supported DEX Types
 
-## Cost
+| DEX | Flag | Examples |
+|-----|------|----------|
+| Uniswap V2 | `uniswap-v2` | Aerodrome, SushiSwap, PancakeSwap |
+| Uniswap V3 | `uniswap-v3` | Uniswap V3 and forks |
+| Solidly Stable | `solidly-stable` | Velodrome stable pools |
+| Curve | `curve-stable-swap` | Curve StableSwap |
+| Balancer V2 | `balancer-v2` | Balancer weighted pools |
+| Trader Joe LB | `trader-joe-lb` | Liquidity Book |
+| DODO | `dodo-pmm` | DODO PMM |
+| Algebra V3 | `algebra-v3` | Camelot, QuickSwap V3 |
 
-| Component | Cost |
-|-----------|------|
-| ZK proving (via Boundless) | ~$0.004 per update |
-| On-chain verification (L1) | ~250K gas |
-| On-chain verification (L2) | ~$0.007 gas |
-| **Total per update (L2)** | **~$0.01** |
-| Vendor fees | $0 |
+## CLI Tools
+
+| Binary | Purpose |
+|--------|---------|
+| `wizard` | Interactive setup -- configures everything and deploys |
+| `keeper` | Automated service -- heartbeat + deviation triggers, persistent state, RPC fallback |
+| `boundless` | One-shot -- submit a single proof and update the oracle |
+
+### Keeper details
+
+The keeper runs a loop checking two triggers:
+- **Heartbeat**: Update if time since last update exceeds threshold (default: 1 hour)
+- **Deviation**: Update if spot price moves more than threshold from on-chain (default: 1%)
+
+It auto-detects whether the oracle supports Boundless callback delivery. If not, it falls back to manual submission (waits for proof, then calls `updatePrice()` directly).
+
+```bash
+cargo run --release --bin keeper -- \
+  --heartbeat 3600 \
+  --deviation-bps 100 \
+  --check-interval 60
+```
+
+## Contracts
+
+### `ZkOracle.sol` -- Core oracle
+
+- Chainlink `AggregatorV3Interface` (drop-in replacement)
+- Dual submission: direct `updatePrice()` or Boundless callback via `handleProof()`
+- Upgradeable `imageId` -- update the guest program without redeploying
+- Safety parameters: `maxDeviationBps`, `minSamples`, `maxBlockAge`
+- Emergency pause, ownership transfer
+
+### `ZkOracleAggregator.sol` -- Multi-pool aggregation
+
+Reads from multiple `ZkOracle` sources and returns the median. Eliminates single-pool risk.
+
+```solidity
+address[] memory sources = new address[](3);
+sources[0] = aerodromeOracle;
+sources[1] = uniswapOracle;
+sources[2] = sushiOracle;
+
+ZkOracleAggregator agg = new ZkOracleAggregator(sources, 18, "AERO / WETH", 2);
+(, int256 price, , , ) = agg.latestRoundData();
+```
+
+### `ZkOracleRegistry.sol` -- Feed discovery
+
+Maps `(token0, token1, dexType)` to oracle addresses for on-chain lookup.
+
+### Oracle adapters
+
+Drop-in wrappers for non-Chainlink interfaces: `PythAdapter.sol`, `RedstoneAdapter.sol`, `ChronicleAdapter.sol`.
 
 ## Configuration
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `--num-blocks` | 10 | Number of blocks to sample |
-| `--stride` | 1 | Sample every Nth block |
-| `--decimals` | 18 | Output price decimal places |
-| `--pool` | -- | Uniswap V2 pair address |
-| `--rpc-url` | -- | Ethereum RPC endpoint |
-| `--oracle-address` | -- | Deployed ZkOracle contract (for on-chain submission) |
-| `--private-key` | -- | Wallet key (for on-chain submission) |
-| `--program-url` | -- | Pre-uploaded ELF URL (Boundless CLI, skips upload) |
-| `--storage-uploader` | -- | Storage backend for ELF upload (`pinata`) |
+All CLI parameters can be set via environment variables. The wizard generates a complete `.env` file, but here's the reference:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `POOL_ADDRESS` | DEX pool contract address | -- |
+| `ORACLE_ADDRESS` | Deployed ZkOracle address | -- |
+| `RPC_URL` | Oracle chain RPC | -- |
+| `PRIVATE_KEY` | Wallet private key | -- |
+| `DEX_TYPE` | Pool type | `uniswap-v2` |
+| `NUM_BLOCKS` | Blocks to sample per proof | `5` |
+| `BLOCK_STRIDE` | Sample every Nth block | `20` |
+| `HEARTBEAT_SECONDS` | Max seconds between updates | `3600` |
+| `DEVIATION_BPS` | Deviation trigger in basis points | `100` |
+| `PINATA_JWT` | Pinata IPFS JWT | -- |
+
+## Docker
+
+```bash
+docker build -t zk-oracle .
+docker run --env-file .env zk-oracle              # keeper (default)
+docker run --env-file .env zk-oracle boundless     # one-shot
+docker run -it --env-file .env zk-oracle wizard    # setup wizard
+```
+
+## Limitations
+
+### Update latency
+Proof generation takes ~1 minute via Boundless. This can be made faster -- [contact the Boundless team](https://boundless.xyz) for latency-sensitive use cases. Not suitable for applications requiring sub-second prices.
+
+### Volatile and low-liquidity assets
+The multi-block median resists manipulation but can't protect against fundamental price instability. For memecoins and micro-cap tokens that move 10-50% in minutes, the oracle price will lag during rapid moves. Don't use as the sole price source for liquidation logic on assets with thin liquidity (<$100K). Consider using `ZkOracleAggregator` with multiple pools and pairing with a circuit breaker.
+
+### Single-pool dependency
+Each `ZkOracle` reads from one pool. Use `ZkOracleAggregator` to combine multiple pools and eliminate this risk.
+
+### Gas costs
+~200-400K gas per update. Fractions of a cent on L2; several dollars on Ethereum mainnet.
+
+### Chain support
+Boundless Market callback delivery is currently available on Base mainnet. On other chains, the keeper falls back to manual submission.
+
+## Deployed Contracts (Base Mainnet)
+
+| Contract | Address |
+|----------|---------|
+| ZkOracle (AERO/WETH) | `0xF556b835DCC5caEE3FEab16Ffa52746eE2edB734` |
+| Boundless Market | `0xfd152dadc5183870710fe54f939eae3ab9f0fe82` |
+| RISC Zero Verifier | `0xa326b2eb45a5c3c206df905a58970dca57b8719e` |
+
+## Security
+
+- **ZK proof** guarantees computational integrity -- the median was computed correctly
+- **Steel commitment** guarantees data authenticity -- inputs came from real on-chain state
+- **V3 TWAP** guarantees flash loan immunity -- tick accumulators can't be manipulated within a transaction
+
+The smart contracts have not been audited. Do not use with significant funds without thorough review.
 
 ## License
 

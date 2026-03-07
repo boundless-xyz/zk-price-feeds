@@ -29,19 +29,18 @@ contract ZkOracleRedstoneAdapter is IRedstoneAdapter {
 
     error UnsupportedDataFeed(bytes32 id);
     error NoRoundData();
+    error NegativePrice();
 
     constructor(ZkOracle _oracle, bytes32 _dataFeedId) {
         oracle = _oracle;
         dataFeedId = _dataFeedId;
     }
 
-    /// @notice Returns the price for the given data feed ID.
     function getValueForDataFeed(bytes32 _dataFeedId) external view override returns (uint256) {
         if (_dataFeedId != dataFeedId) revert UnsupportedDataFeed(_dataFeedId);
         return _getScaledPrice();
     }
 
-    /// @notice Returns prices for multiple data feed IDs (only supports the configured feed).
     function getValuesForDataFeeds(bytes32[] memory dataFeedIds) external view override returns (uint256[] memory) {
         uint256[] memory values = new uint256[](dataFeedIds.length);
         for (uint256 i = 0; i < dataFeedIds.length; i++) {
@@ -51,36 +50,30 @@ contract ZkOracleRedstoneAdapter is IRedstoneAdapter {
         return values;
     }
 
-    /// @notice Returns timestamps from the latest oracle update.
     function getTimestampsFromLatestUpdate() external view override returns (uint128 dataTimestamp, uint128 blockTimestamp) {
         if (oracle.currentRoundId() == 0) revert NoRoundData();
         (,,, uint256 updatedAt,) = oracle.latestRoundData();
-        // dataTimestamp and blockTimestamp are the same for ZK oracle (update time).
         return (uint128(updatedAt), uint128(updatedAt));
     }
 
-    /// @notice Returns the data timestamp from the latest update.
     function getDataTimestampFromLatestUpdate() external view override returns (uint256 lastDataTimestamp) {
         if (oracle.currentRoundId() == 0) revert NoRoundData();
         (,,, uint256 updatedAt,) = oracle.latestRoundData();
         return updatedAt;
     }
 
-    /// @notice Returns the block timestamp from the latest update.
     function getBlockTimestampFromLatestUpdate() external view override returns (uint256 blockTimestamp) {
         if (oracle.currentRoundId() == 0) revert NoRoundData();
         (,,, uint256 updatedAt,) = oracle.latestRoundData();
         return updatedAt;
     }
 
-    /// @notice Returns the list of supported data feed IDs.
     function getDataFeedIds() external view override returns (bytes32[] memory) {
         bytes32[] memory ids = new bytes32[](1);
         ids[0] = dataFeedId;
         return ids;
     }
 
-    /// @notice Returns the index of a data feed (always 0 for single-feed adapter).
     function getDataFeedIndex(bytes32 _dataFeedId) external view override returns (uint256) {
         if (_dataFeedId != dataFeedId) revert UnsupportedDataFeed(_dataFeedId);
         return 0;
@@ -91,6 +84,9 @@ contract ZkOracleRedstoneAdapter is IRedstoneAdapter {
     function _getScaledPrice() internal view returns (uint256) {
         if (oracle.currentRoundId() == 0) revert NoRoundData();
         (, int256 answer,,,) = oracle.latestRoundData();
+
+        // Ensure price is non-negative before casting.
+        if (answer < 0) revert NegativePrice();
 
         // Scale from oracle decimals to RedStone's 8-decimal convention.
         uint8 oracleDecimals = oracle.decimals();

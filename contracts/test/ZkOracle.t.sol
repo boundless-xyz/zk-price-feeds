@@ -3,7 +3,7 @@ pragma solidity ^0.8.26;
 
 import "forge-std/Test.sol";
 import {ZkOracle, IAggregatorV3Interface} from "../src/ZkOracle.sol";
-import {IRiscZeroVerifier} from "risc0-ethereum/IRiscZeroVerifier.sol";
+import {IRiscZeroVerifier, Receipt} from "risc0-ethereum/IRiscZeroVerifier.sol";
 
 /// @notice Mock verifier that accepts all proofs (for testing only).
 contract MockVerifier is IRiscZeroVerifier {
@@ -26,7 +26,9 @@ contract ZkOracleTest is Test {
             IMAGE_ID,
             POOL,
             DECIMALS,
-            "ETH / USDC"
+            "ETH / USDC",
+            false, // skip commitment validation in tests
+            address(0) // no Boundless Market callback in tests
         );
     }
 
@@ -39,7 +41,7 @@ contract ZkOracleTest is Test {
     }
 
     function test_version() public view {
-        assertEq(oracle.version(), 1);
+        assertEq(oracle.version(), 2);
     }
 
     function test_noRoundData() public {
@@ -54,6 +56,31 @@ contract ZkOracleTest is Test {
 
     function test_imageId() public view {
         assertEq(oracle.imageId(), IMAGE_ID);
+    }
+
+    function test_setImageId_owner() public {
+        bytes32 newImageId = bytes32(uint256(42));
+
+        // Verify owner can update
+        oracle.setImageId(newImageId);
+        assertEq(oracle.imageId(), newImageId);
+    }
+
+    function test_setImageId_nonOwner_reverts() public {
+        bytes32 newImageId = bytes32(uint256(42));
+
+        // Verify non-owner cannot update
+        vm.prank(address(0xdead));
+        vm.expectRevert(ZkOracle.NotOwner.selector);
+        oracle.setImageId(newImageId);
+    }
+
+    function test_setImageId_emitsEvent() public {
+        bytes32 newImageId = bytes32(uint256(42));
+
+        vm.expectEmit(true, true, false, false);
+        emit ZkOracle.ImageIdUpdated(IMAGE_ID, newImageId);
+        oracle.setImageId(newImageId);
     }
 
     function test_pool() public view {

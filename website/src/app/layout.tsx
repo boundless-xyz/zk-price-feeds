@@ -1,10 +1,45 @@
 import type { Metadata } from "next";
+import { Space_Grotesk, DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-dm-sans",
+  display: "swap",
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "CheapOracles.wtf - A price feed for every token",
+  title: "AnyFeed — A price feed for every token",
   description:
-    "ZK-verified price feeds from 10 DEX standards across every EVM chain. $0.01 per update. No subscriptions. No vendor contracts. No permission needed.",
+    "ZK-verified DEX price feeds for any on-chain pair. No subscriptions. No vendor contracts. No permission needed. $0.01 per update on L2.",
+  icons: {
+    icon: "/favicon.svg",
+  },
+  openGraph: {
+    title: "AnyFeed — A price feed for every token",
+    description:
+      "ZK-verified DEX price feeds for any on-chain pair. $0.01 per update. Chainlink-compatible interface.",
+    type: "website",
+    siteName: "AnyFeed",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AnyFeed — A price feed for every token",
+    description:
+      "ZK-verified DEX price feeds for any on-chain pair. $0.01 per update. Chainlink-compatible.",
+  },
 };
 
 export default function RootLayout({
@@ -15,12 +50,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=VT323&family=Rubik:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
+        <link rel="preconnect" href="https://api.dexscreener.com" />
       </head>
-      <body className="antialiased">{children}</body>
+      <body
+        className={`${spaceGrotesk.variable} ${dmSans.variable} ${jetBrainsMono.variable} antialiased`}
+      >
+        {children}
+      </body>
     </html>
   );
 }
