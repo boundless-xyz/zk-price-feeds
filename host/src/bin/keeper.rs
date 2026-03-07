@@ -71,9 +71,10 @@ sol! {
 sol! {
     struct OracleJournal {
         bytes[] steelCommitments;
+        bytes32 configHash;
         address pool;
         uint256 medianPrice;
-        uint8 decimals;
+        uint8 journalDecimals;
         uint32 numSamples;
         uint64 startBlock;
         uint64 endBlock;

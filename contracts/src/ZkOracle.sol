@@ -55,6 +55,10 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
     /// @dev Set to address(0) to disable callback path.
     address public immutable BOUNDLESS_MARKET;
 
+    /// @notice Hash of the oracle config parameters (dex type, decimals, twap window, etc.).
+    /// @dev Binds the ZK proof to the exact config so a prover can't substitute parameters.
+    bytes32 public immutable CONFIG_HASH;
+
     // ─── Safety parameters ───────────────────────────────────────────────
 
     /// @notice Maximum deviation from last price (in basis points). 0 = disabled.
@@ -108,6 +112,7 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
     /// @notice Journal structure matching the guest program output.
     struct OracleJournal {
         bytes[] steelCommitments;
+        bytes32 configHash;
         address pool;
         uint256 medianPrice;
         uint8 journalDecimals;
@@ -130,6 +135,7 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
     error DeviationTooLarge(uint256 newPrice, uint256 lastPrice, uint256 maxBps);
     error InvalidCallbackSender();
     error InvalidImageId();
+    error InvalidConfigHash(bytes32 expected, bytes32 received);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
 
@@ -152,7 +158,8 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
         uint8 _decimals,
         string memory _description,
         bool _validateCommitment,
-        address _boundlessMarket
+        address _boundlessMarket,
+        bytes32 _configHash
     ) {
         VERIFIER = _verifier;
         imageId = _imageId;
@@ -160,6 +167,7 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
         PRICE_DECIMALS = _decimals;
         VALIDATE_COMMITMENT = _validateCommitment;
         BOUNDLESS_MARKET = _boundlessMarket;
+        CONFIG_HASH = _configHash;
         feedDescription = _description;
         owner = msg.sender;
 
@@ -232,6 +240,9 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
 
         if (journal.pool != POOL) revert InvalidPool(POOL, journal.pool);
         if (journal.journalDecimals != PRICE_DECIMALS) revert InvalidDecimals(PRICE_DECIMALS, journal.journalDecimals);
+        if (CONFIG_HASH != bytes32(0) && journal.configHash != CONFIG_HASH) {
+            revert InvalidConfigHash(CONFIG_HASH, journal.configHash);
+        }
 
         if (VALIDATE_COMMITMENT) {
             // Validate ALL block commitments to ensure every sampled block is from the real chain.

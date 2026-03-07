@@ -67,6 +67,14 @@ export default function Nav() {
             FAQ
           </a>
           <a
+            href="https://github.com/boundless-xyz/boundless/discussions"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-text-secondary hover:text-text-primary transition-colors"
+          >
+            Help
+          </a>
+          <a
             href="https://github.com/boundless-xyz/zk-oracle"
             target="_blank"
             rel="noopener noreferrer"
@@ -135,6 +143,15 @@ export default function Nav() {
             className="text-text-secondary hover:text-text-primary"
           >
             FAQ
+          </a>
+          <a
+            href="https://github.com/boundless-xyz/boundless/discussions"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+            className="text-text-secondary hover:text-text-primary"
+          >
+            Help
           </a>
           <a
             href="https://github.com/boundless-xyz/zk-oracle"

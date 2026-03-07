@@ -31,7 +31,8 @@ contract DeployMockZkOracle is Script {
             decimals,
             description,
             false, // validateCommitment = false for cross-chain testnet
-            address(0) // no Boundless Market callback
+            address(0), // no Boundless Market callback
+            bytes32(0) // no config hash enforcement in testnet
         );
 
         vm.stopBroadcast();

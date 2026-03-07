@@ -3,7 +3,7 @@ use alloy_sol_types::{SolValue, sol};
 use anyhow::{Context, Result};
 use risc0_steel::{
     Contract, EvmBlockHeader,
-    ethereum::{ETH_MAINNET_CHAIN_SPEC, EthEvmEnv},
+    ethereum::{ETH_MAINNET_CHAIN_SPEC, EthChainSpec, EthEvmEnv},
 };
 use risc0_zkvm::{ExecutorEnv, default_executor};
 use std::time::Instant;
@@ -19,20 +19,33 @@ sol! {
 // Journal structure matching the guest.
 sol! {
     struct OracleJournal {
-        bytes steelCommitment;
+        bytes[] steelCommitments;
+        bytes32 configHash;
         address pool;
         uint256 medianPrice;
-        uint8 decimals;
+        uint8 journalDecimals;
         uint32 numSamples;
         uint64 startBlock;
         uint64 endBlock;
+        uint64 timestamp;
     }
 }
+
+#[derive(serde::Serialize)]
+#[repr(u8)]
+enum DexType { UniswapV2 = 0 }
 
 #[derive(serde::Serialize)]
 struct OracleConfig {
     pool: Address,
     decimals: u8,
+    dex_type: DexType,
+    aux_address: Option<Address>,
+    aux_bytes32: Option<[u8; 32]>,
+    token0_decimals: Option<u8>,
+    token1_decimals: Option<u8>,
+    twap_window: u32,
+    chain_spec: EthChainSpec,
 }
 
 struct BenchmarkResult {
@@ -85,7 +98,17 @@ async fn benchmark_pair(
 
     // Build executor env with num_blocks copies of the same input.
     // This simulates the cycle cost of a 20-block median computation.
-    let config = OracleConfig { pool, decimals };
+    let config = OracleConfig {
+        pool,
+        decimals,
+        dex_type: DexType::UniswapV2,
+        aux_address: None,
+        aux_bytes32: None,
+        token0_decimals: None,
+        token1_decimals: None,
+        twap_window: 0,
+        chain_spec: ETH_MAINNET_CHAIN_SPEC.clone(),
+    };
     let mut builder = ExecutorEnv::builder();
     builder.write(&config)?;
     builder.write(&num_blocks)?;

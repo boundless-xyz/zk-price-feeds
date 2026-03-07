@@ -64,9 +64,10 @@ sol! {
 sol! {
     struct OracleJournal {
         bytes[] steelCommitments;
+        bytes32 configHash;
         address pool;
         uint256 medianPrice;
-        uint8 decimals;
+        uint8 journalDecimals;
         uint32 numSamples;
         uint64 startBlock;
         uint64 endBlock;
@@ -432,7 +433,7 @@ async fn main() -> Result<()> {
     println!("\nProof received!");
     println!("  Pool:         {:#}", journal.pool);
     println!("  DEX:          {dex_name}");
-    println!("  Median Price: {} ({}dp)", journal.medianPrice, journal.decimals);
+    println!("  Median Price: {} ({}dp)", journal.medianPrice, journal.journalDecimals);
     println!("  Samples:      {}", journal.numSamples);
     println!("  Block Range:  {} - {}", journal.startBlock, journal.endBlock);
 

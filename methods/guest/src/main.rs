@@ -1,6 +1,6 @@
 #![no_main]
 
-use alloy_primitives::{Address, Sign, U256};
+use alloy_primitives::{Address, Sign, U256, keccak256};
 use alloy_sol_types::{SolValue, sol};
 use risc0_steel::{Contract, EvmBlockHeader, ethereum::EthEvmInput};
 use risc0_steel::ethereum::EthChainSpec;
@@ -55,6 +55,7 @@ sol! {
 sol! {
     struct OracleJournal {
         bytes[] steelCommitments;
+        bytes32 configHash;
         address pool;
         uint256 medianPrice;
         uint8 decimals;
@@ -385,8 +386,15 @@ fn main() {
 
     assert!(!commitments.is_empty(), "No blocks processed");
 
+    // Bind the oracle config to the proof so the contract can verify no parameters were tampered.
+    let config_hash = keccak256(
+        (config.pool, config.dex_type as u8, t0dec, t1dec, config.decimals, config.twap_window)
+            .abi_encode_packed(),
+    );
+
     let journal = OracleJournal {
         steelCommitments: commitments.into_iter().map(|c| c.into()).collect(),
+        configHash: config_hash,
         pool: config.pool,
         medianPrice: median,
         decimals: config.decimals,

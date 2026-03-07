@@ -28,7 +28,8 @@ contract ZkOracleTest is Test {
             DECIMALS,
             "ETH / USDC",
             false, // skip commitment validation in tests
-            address(0) // no Boundless Market callback in tests
+            address(0), // no Boundless Market callback in tests
+            bytes32(0) // no config hash enforcement in tests
         );
     }
 

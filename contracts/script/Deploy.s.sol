@@ -16,6 +16,13 @@ contract DeployZkOracle is Script {
         bool validateCommitment = vm.envOr("VALIDATE_COMMITMENT", true);
         address boundlessMarket = vm.envOr("BOUNDLESS_MARKET_ADDRESS", address(0));
 
+        // Compute config hash from oracle parameters (must match guest computation)
+        uint8 dexType = uint8(vm.envOr("DEX_TYPE_ID", uint256(0)));
+        uint8 token0Decimals = uint8(vm.envOr("TOKEN0_DECIMALS", uint256(18)));
+        uint8 token1Decimals = uint8(vm.envOr("TOKEN1_DECIMALS", uint256(18)));
+        uint32 twapWindow = uint32(vm.envOr("TWAP_WINDOW", uint256(0)));
+        bytes32 configHash = keccak256(abi.encodePacked(pool, dexType, token0Decimals, token1Decimals, decimals, twapWindow));
+
         vm.startBroadcast();
 
         ZkOracle oracle = new ZkOracle(
@@ -25,7 +32,8 @@ contract DeployZkOracle is Script {
             decimals,
             description,
             validateCommitment,
-            boundlessMarket
+            boundlessMarket,
+            configHash
         );
 
         vm.stopBroadcast();
@@ -35,6 +43,7 @@ contract DeployZkOracle is Script {
         console.log("  Image ID:", vm.toString(imageId));
         console.log("  Pool:", pool);
         console.log("  Decimals:", decimals);
+        console.log("  Config Hash:", vm.toString(configHash));
         console.log("  Description:", description);
         console.log("  Boundless Market:", boundlessMarket);
     }

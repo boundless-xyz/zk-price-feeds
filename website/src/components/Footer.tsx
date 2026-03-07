@@ -86,6 +86,14 @@ export default function Footer() {
             Docs
           </a>
           <a
+            href="https://github.com/boundless-xyz/boundless/discussions"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-5 py-2.5 rounded-md border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
+          >
+            Help
+          </a>
+          <a
             href="https://beboundless.xyz"
             target="_blank"
             rel="noopener noreferrer"
