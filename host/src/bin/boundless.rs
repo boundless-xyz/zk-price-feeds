@@ -9,13 +9,14 @@
 //!     --private-key $PRIVATE_KEY \
 //!     --pool 0xB4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc \
 //!     --oracle-address 0x... \
+//!     --dex-type uniswap-v2 \
 //!     --num-blocks 10
 
 use alloy_primitives::{Address, U256};
 use alloy_sol_types::{SolValue, sol};
 use anyhow::{Context, Result, ensure};
 use boundless_market::{Client, Deployment, StorageUploaderConfig};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use risc0_steel::{
     Contract, EvmBlockHeader,
     alloy::{
@@ -31,9 +32,40 @@ use tracing_subscriber::EnvFilter;
 use url::Url;
 use zk_oracle_methods::ZK_ORACLE_GUEST_ELF;
 
+// ─── DEX interfaces ──────────────────────────────────────────────────────────
+
 sol! {
     interface IUniswapV2Pair {
         function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    }
+
+    interface IUniswapV3Pool {
+        function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked);
+    }
+
+    interface IAlgebraPool {
+        function globalState() external view returns (uint160 price, int24 tick, uint16 feeZto, uint16 feeOtz, uint16 timepointIndex, uint8 communityFeeToken0, uint8 communityFeeToken1);
+    }
+
+    interface ICurvePool {
+        function balances(uint256 i) external view returns (uint256);
+    }
+
+    interface IBalancerVault {
+        function getPoolTokens(bytes32 poolId) external view returns (address[] tokens, uint256[] balances, uint256 lastChangeBlock);
+    }
+
+    interface IBalancerWeightedPool {
+        function getNormalizedWeights() external view returns (uint256[]);
+    }
+
+    interface ILBPair {
+        function getActiveId() external view returns (uint24);
+        function getBinStep() external view returns (uint16);
+    }
+
+    interface IDODO {
+        function getMidPrice() external view returns (uint256);
     }
 }
 
@@ -59,18 +91,37 @@ sol! {
     }
 }
 
-/// Guest input: oracle configuration passed to the guest.
+/// Supported DEX types.
+#[derive(Clone, Copy, Debug, ValueEnum, serde::Serialize)]
+#[repr(u8)]
+enum DexType {
+    UniswapV2 = 0,
+    UniswapV3 = 1,
+    CurveStableSwap = 2,
+    BalancerV2 = 3,
+    SolidlyStable = 4,
+    TraderJoeLB = 5,
+    DodoPMM = 6,
+    AlgebraV3 = 7,
+}
+
+/// Guest input.
 #[derive(serde::Serialize)]
 struct OracleConfig {
     pool: Address,
     decimals: u8,
+    dex_type: DexType,
+    aux_address: Option<Address>,
+    aux_bytes32: Option<[u8; 32]>,
+    token0_decimals: Option<u8>,
+    token1_decimals: Option<u8>,
 }
 
 /// ZK Price Oracle -- request a proof from Boundless and submit it on-chain.
 #[derive(Parser, Debug)]
 #[command(about, long_about = None)]
 struct Args {
-    /// Ethereum RPC URL.
+    /// Ethereum RPC URL (works with any EVM chain).
     #[arg(short, long, env = "RPC_URL")]
     rpc_url: Url,
 
@@ -78,9 +129,13 @@ struct Args {
     #[arg(long, env = "PRIVATE_KEY")]
     private_key: PrivateKeySigner,
 
-    /// Uniswap V2 pair address.
+    /// DEX pool / pair address.
     #[arg(short, long, env = "POOL_ADDRESS")]
     pool: Address,
+
+    /// DEX type.
+    #[arg(long, default_value = "uniswap-v2", env = "DEX_TYPE")]
+    dex_type: DexType,
 
     /// Deployed ZkOracle contract address.
     #[arg(long, env = "ORACLE_ADDRESS")]
@@ -98,6 +153,22 @@ struct Args {
     #[arg(short, long, default_value = "18", env = "PRICE_DECIMALS")]
     decimals: u8,
 
+    /// Token0 decimals (needed for V3/Algebra price math).
+    #[arg(long, env = "TOKEN0_DECIMALS")]
+    token0_decimals: Option<u8>,
+
+    /// Token1 decimals (needed for V3/Algebra price math).
+    #[arg(long, env = "TOKEN1_DECIMALS")]
+    token1_decimals: Option<u8>,
+
+    /// Auxiliary address (e.g. Balancer Vault).
+    #[arg(long, env = "AUX_ADDRESS")]
+    aux_address: Option<Address>,
+
+    /// Auxiliary bytes32 (e.g. Balancer pool ID, as hex).
+    #[arg(long, env = "AUX_BYTES32")]
+    aux_bytes32: Option<String>,
+
     /// Pre-uploaded program URL (skips uploading the ELF).
     #[arg(long, env = "PROGRAM_URL")]
     program_url: Option<Url>,
@@ -106,7 +177,7 @@ struct Args {
     #[clap(flatten, next_help_heading = "Storage Uploader")]
     storage_config: StorageUploaderConfig,
 
-    /// Boundless Market deployment config (optional, uses defaults if omitted).
+    /// Boundless Market deployment config.
     #[clap(flatten, next_help_heading = "Boundless Market Deployment")]
     deployment: Option<Deployment>,
 }
@@ -120,8 +191,20 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
 
+    let dex_name = match args.dex_type {
+        DexType::UniswapV2 => "Uniswap V2",
+        DexType::UniswapV3 => "Uniswap V3",
+        DexType::CurveStableSwap => "Curve",
+        DexType::BalancerV2 => "Balancer V2",
+        DexType::SolidlyStable => "Solidly Stable",
+        DexType::TraderJoeLB => "Trader Joe LB",
+        DexType::DodoPMM => "DODO PMM",
+        DexType::AlgebraV3 => "Algebra V3",
+    };
+
     println!("ZK Price Oracle (Boundless)");
     println!("  Pool:       {:#}", args.pool);
+    println!("  DEX:        {dex_name}");
     println!("  Oracle:     {:#}", args.oracle_address);
     println!("  Samples:    {}", args.num_blocks);
     println!("  Stride:     {}", args.stride);
@@ -156,6 +239,7 @@ async fn main() -> Result<()> {
         .build()
         .await?;
     let latest_block = latest_env.header().number();
+    println!("Chain ID: {chain_id}");
     println!("Latest block: {latest_block}");
 
     let block_numbers: Vec<u64> = (0..args.num_blocks as u64)
@@ -169,16 +253,25 @@ async fn main() -> Result<()> {
         args.stride
     );
 
-    // Preflight each block and serialize the Steel inputs.
-    let call = IUniswapV2Pair::getReservesCall {};
+    let aux_bytes32: Option<[u8; 32]> = args.aux_bytes32.as_ref().map(|hex_str| {
+        let hex = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+        let bytes = hex::decode(hex).expect("invalid hex for --aux-bytes32");
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&bytes);
+        arr
+    });
+
     let config = OracleConfig {
         pool: args.pool,
         decimals: args.decimals,
+        dex_type: args.dex_type,
+        aux_address: args.aux_address,
+        aux_bytes32,
+        token0_decimals: args.token0_decimals,
+        token1_decimals: args.token1_decimals,
     };
 
-    // Build the stdin bytes for the guest.
     let mut stdin_bytes: Vec<u8> = Vec::new();
-    // Write config and num_blocks via bincode (matching risc0 env::read format).
     stdin_bytes.extend_from_slice(&risc0_zkvm::serde::to_vec(&config)?.iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>());
     stdin_bytes.extend_from_slice(&risc0_zkvm::serde::to_vec(&args.num_blocks)?.iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>());
 
@@ -191,18 +284,55 @@ async fn main() -> Result<()> {
             .await
             .with_context(|| format!("failed to build env for block {block_num}"))?;
 
-        let mut contract = Contract::preflight(args.pool, &mut env);
-        let returns = contract.call_builder(&call).call().await?;
+        // Preflight the appropriate DEX calls.
+        match args.dex_type {
+            DexType::UniswapV2 | DexType::SolidlyStable => {
+                let call = IUniswapV2Pair::getReservesCall {};
+                let mut contract = Contract::preflight(args.pool, &mut env);
+                let _r = contract.call_builder(&call).call().await?;
+            }
+            DexType::UniswapV3 => {
+                let call = IUniswapV3Pool::slot0Call {};
+                let mut contract = Contract::preflight(args.pool, &mut env);
+                let _r = contract.call_builder(&call).call().await?;
+            }
+            DexType::AlgebraV3 => {
+                let call = IAlgebraPool::globalStateCall {};
+                let mut contract = Contract::preflight(args.pool, &mut env);
+                let _r = contract.call_builder(&call).call().await?;
+            }
+            DexType::CurveStableSwap => {
+                let call0 = ICurvePool::balancesCall { i: U256::ZERO };
+                let call1 = ICurvePool::balancesCall { i: U256::from(1u64) };
+                let mut contract = Contract::preflight(args.pool, &mut env);
+                let _r0 = contract.call_builder(&call0).call().await?;
+                let _r1 = contract.call_builder(&call1).call().await?;
+            }
+            DexType::BalancerV2 => {
+                let vault = args.aux_address.context("--aux-address required for Balancer V2")?;
+                let pool_id = aux_bytes32.context("--aux-bytes32 required for Balancer V2")?;
+                let vault_call = IBalancerVault::getPoolTokensCall { poolId: pool_id.into() };
+                let mut vault_contract = Contract::preflight(vault, &mut env);
+                let _vr = vault_contract.call_builder(&vault_call).call().await?;
+                let weights_call = IBalancerWeightedPool::getNormalizedWeightsCall {};
+                let mut pool_contract = Contract::preflight(args.pool, &mut env);
+                let _wr = pool_contract.call_builder(&weights_call).call().await?;
+            }
+            DexType::TraderJoeLB => {
+                let id_call = ILBPair::getActiveIdCall {};
+                let step_call = ILBPair::getBinStepCall {};
+                let mut contract = Contract::preflight(args.pool, &mut env);
+                let _id = contract.call_builder(&id_call).call().await?;
+                let _step = contract.call_builder(&step_call).call().await?;
+            }
+            DexType::DodoPMM => {
+                let call = IDODO::getMidPriceCall {};
+                let mut contract = Contract::preflight(args.pool, &mut env);
+                let _r = contract.call_builder(&call).call().await?;
+            }
+        }
 
-        let reserve0 = U256::from(returns.reserve0);
-        let reserve1 = U256::from(returns.reserve1);
-        let scale = U256::from(10u64).pow(U256::from(args.decimals));
-        let price = if !reserve0.is_zero() {
-            (reserve1 * scale) / reserve0
-        } else {
-            U256::ZERO
-        };
-        println!("  Block {block_num}: price={price}");
+        println!("  Block {block_num}: preflight OK");
 
         let input = env.into_input().await?;
         let input_bytes = risc0_zkvm::serde::to_vec(&input)?.iter().flat_map(|w| w.to_le_bytes()).collect::<Vec<u8>>();
@@ -253,6 +383,7 @@ async fn main() -> Result<()> {
 
     println!("\nProof received!");
     println!("  Pool:         {:#}", journal.pool);
+    println!("  DEX:          {dex_name}");
     println!("  Median Price: {} ({}dp)", journal.medianPrice, journal.decimals);
     println!("  Samples:      {}", journal.numSamples);
     println!("  Block Range:  {} - {}", journal.startBlock, journal.endBlock);
@@ -276,7 +407,7 @@ async fn main() -> Result<()> {
     let round_id = oracle.currentRoundId().call().await?;
     let latest = oracle.latestRoundData().call().await?;
 
-    println!("\n✅ Price updated on-chain!");
+    println!("\nPrice updated on-chain!");
     println!("  Round:   {}", round_id.0);
     println!("  Price:   {}", latest.answer);
     println!("  Updated: {}", latest.updatedAt);

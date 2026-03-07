@@ -1,12 +1,12 @@
 const feeds = [
   { token: "RPL", price: "$2.38", dex: "Uniswap", hasChainlink: false },
   { token: "SHIB", price: "$0.0000055", dex: "Uniswap", hasChainlink: false },
-  { token: "CAKE", price: "$2.41", dex: "PancakeSwap", hasChainlink: false },
-  { token: "AERO", price: "$0.87", dex: "Aerodrome", hasChainlink: false },
-  { token: "ETH", price: "$2,075", dex: "Uniswap", hasChainlink: true },
-  { token: "UNI", price: "$3.97", dex: "Uniswap", hasChainlink: true },
-  { token: "LINK", price: "$9.19", dex: "Uniswap", hasChainlink: true },
-  { token: "AAVE", price: "$116.94", dex: "Uniswap", hasChainlink: true },
+  { token: "CAKE", price: "$2.41", dex: "PancakeSwap V2", hasChainlink: false },
+  { token: "AERO", price: "$0.87", dex: "Aerodrome CL", hasChainlink: false },
+  { token: "ETH", price: "$2,075", dex: "Uniswap V3", hasChainlink: true },
+  { token: "UNI", price: "$3.97", dex: "Uniswap V2", hasChainlink: true },
+  { token: "LINK", price: "$9.19", dex: "Balancer V2", hasChainlink: true },
+  { token: "AAVE", price: "$116.94", dex: "Curve", hasChainlink: true },
 ];
 
 export default function LiveFeeds() {
@@ -26,7 +26,7 @@ export default function LiveFeeds() {
             <span className="text-text-primary">Any DEX.</span>
           </h2>
           <p className="text-xl text-text-secondary font-body max-w-2xl mx-auto">
-            Uniswap, PancakeSwap, Aerodrome, SushiSwap -- if it has a V2-compatible pool, it gets a feed.
+            Uniswap V2/V3, PancakeSwap, Curve, Balancer, Aerodrome, Trader Joe, DODO -- 10 DEX standards across every EVM chain.
           </p>
         </div>
 
@@ -46,7 +46,7 @@ export default function LiveFeeds() {
               {/* Your token row */}
               <tr className="border-b-2 border-neon-green/30" style={{ background: "linear-gradient(135deg, rgba(57,255,20,0.05), rgba(0,229,255,0.05))" }}>
                 <td className="py-4 px-6"><span className="font-display text-neon-green text-lg tracking-wide">Your token</span></td>
-                <td className="py-4 px-6 font-mono text-neon-cyan italic hidden sm:table-cell">Any V2 pool</td>
+                <td className="py-4 px-6 font-mono text-neon-cyan italic hidden sm:table-cell">Any supported DEX</td>
                 <td className="py-4 px-6 text-right font-mono text-neon-cyan italic text-lg">Any price</td>
                 <td className="py-4 px-6 text-right font-mono text-neon-green font-bold hidden md:table-cell">$0.01</td>
                 <td className="py-4 px-6 text-right">

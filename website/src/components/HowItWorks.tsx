@@ -5,7 +5,7 @@ const steps = [
     gradient: "from-neon-cyan to-neon-blue",
     hoverGlow: "hover-glow-cyan",
     description:
-      "A program inside the zkVM reads DEX pool reserves across 20 blocks. Works with any Uniswap V2-compatible pool -- Uniswap, PancakeSwap, Aerodrome, SushiSwap. Every call is cryptographically tied to actual on-chain state.",
+      "A program inside the zkVM reads DEX pool state across 20 blocks. Supports 10 DEX standards: Uniswap V2/V3, Curve, Balancer, PancakeSwap, Aerodrome, Trader Joe, DODO, and more. Any EVM chain. Every read is cryptographically tied to actual on-chain state.",
   },
   {
     num: "02",

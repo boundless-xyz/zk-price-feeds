@@ -26,7 +26,7 @@ export default function Hero() {
         <div className="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full glass mb-10">
           <span className="w-2.5 h-2.5 rounded-full bg-neon-green animate-glow-pulse" />
           <span className="text-neon-green text-sm font-mono tracking-wider">
-            LIVE ON ETHEREUM MAINNET
+            LIVE ON ANY EVM CHAIN
           </span>
         </div>
 
@@ -43,8 +43,8 @@ export default function Hero() {
         {/* Subhead */}
         <p className="text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto mb-12 leading-relaxed font-body">
           500,000+ on-chain pairs can now have a ZK-verified price feed.
-          Works with Uniswap, PancakeSwap, Aerodrome, and any Uniswap V2-compatible DEX.
-          $0.01 per update on L2. No permission needed.
+          Works with Uniswap V2/V3, PancakeSwap, Curve, Balancer, Aerodrome, Trader Joe, DODO, and more.
+          Any EVM chain. $0.01 per update on L2. No permission needed.
         </p>
 
         {/* CTAs */}

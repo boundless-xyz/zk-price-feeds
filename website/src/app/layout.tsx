@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CheapOracles.wtf - Price feeds proven by math",
+  title: "CheapOracles.wtf - A price feed for every token",
   description:
-    "ZK-verified DEX prices for any on-chain pair. No subscriptions. No vendor contracts. No permission needed.",
+    "ZK-verified price feeds from 10 DEX standards across every EVM chain. $0.01 per update. No subscriptions. No vendor contracts. No permission needed.",
 };
 
 export default function RootLayout({

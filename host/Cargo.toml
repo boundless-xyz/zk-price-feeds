@@ -11,6 +11,7 @@ anyhow = { workspace = true }
 boundless-market = { version = "3.0" }
 clap = { workspace = true }
 dotenvy = "0.15"
+hex = "0.4"
 risc0-ethereum-contracts = { version = "3.0" }
 risc0-steel = { workspace = true, features = ["host"] }
 risc0-zkvm = { workspace = true }

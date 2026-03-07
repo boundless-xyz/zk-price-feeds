@@ -23,10 +23,14 @@ const tokens = [
 ];
 
 const dexes = [
-  { name: "Uniswap", chains: "Ethereum, Base, Arbitrum, ..." },
+  { name: "Uniswap V2/V3", chains: "Ethereum, Base, Arbitrum, ..." },
   { name: "PancakeSwap", chains: "BSC, Ethereum, Base, ..." },
+  { name: "Curve", chains: "Ethereum, Arbitrum, ..." },
+  { name: "Balancer V2", chains: "Ethereum, Arbitrum, Polygon" },
   { name: "Aerodrome", chains: "Base" },
-  { name: "Velodrome", chains: "Optimism" },
+  { name: "Trader Joe", chains: "Avalanche, Arbitrum" },
+  { name: "DODO", chains: "Multi-chain" },
+  { name: "Camelot", chains: "Arbitrum" },
   { name: "SushiSwap", chains: "Multi-chain" },
   { name: "Any V2 fork", chains: "Any EVM chain" },
 ];
@@ -44,7 +48,7 @@ export default function Problem() {
           </h2>
 
           <p className="text-xl text-text-secondary mb-12 max-w-2xl mx-auto font-body">
-            If your token has a pool on any V2-compatible DEX, it can have a ZK-verified price feed. No application, no vendor contract, no waiting.
+            If your token has a pool on any supported DEX -- on any EVM chain -- it can have a ZK-verified price feed. No application, no vendor contract, no waiting.
           </p>
         </div>
 
@@ -96,7 +100,7 @@ export default function Problem() {
 
         {/* Supported DEXes */}
         <div className="glass-strong rounded-2xl p-8 max-w-3xl mx-auto text-center">
-          <p className="text-xs font-mono text-text-muted tracking-widest mb-5">SUPPORTED DEX PROTOCOLS</p>
+          <p className="text-xs font-mono text-text-muted tracking-widest mb-5">SUPPORTED DEX PROTOCOLS (ANY EVM CHAIN)</p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             {dexes.map((d) => (
               <div key={d.name} className="glass rounded-lg px-4 py-2.5">
