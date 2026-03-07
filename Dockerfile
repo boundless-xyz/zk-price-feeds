@@ -3,9 +3,9 @@
 
 FROM rust:1.89-bookworm AS builder
 
-# Install foundry for contract deployment (optional, used by wizard)
+# Install foundry (pinned version for reproducibility)
 RUN curl -L https://foundry.paradigm.xyz | bash && \
-    /root/.foundry/bin/foundryup
+    /root/.foundry/bin/foundryup --version 1.0.0
 
 WORKDIR /build
 
@@ -25,6 +25,11 @@ FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Run as non-root user
+RUN useradd --create-home --shell /bin/bash oracle
+USER oracle
+WORKDIR /home/oracle
 
 COPY --from=builder /build/target/release/keeper /usr/local/bin/keeper
 COPY --from=builder /build/target/release/boundless /usr/local/bin/boundless

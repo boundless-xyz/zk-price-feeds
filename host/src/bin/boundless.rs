@@ -63,7 +63,7 @@ sol! {
 
 sol! {
     struct OracleJournal {
-        bytes steelCommitment;
+        bytes[] steelCommitments;
         address pool;
         uint256 medianPrice;
         uint8 decimals;
@@ -266,8 +266,10 @@ async fn main() -> Result<()> {
     println!("Latest block: {latest_block}");
 
     let block_numbers: Vec<u64> = (0..args.num_blocks as u64)
-        .map(|i| latest_block - (i * args.stride))
+        .map(|i| latest_block.saturating_sub(i * args.stride))
+        .filter(|&b| b > 0)
         .collect();
+    ensure!(!block_numbers.is_empty(), "No valid block numbers (chain too young for configured stride)");
 
     println!(
         "Sampling blocks {} to {} (stride {})",
@@ -276,13 +278,17 @@ async fn main() -> Result<()> {
         args.stride
     );
 
-    let aux_bytes32: Option<[u8; 32]> = args.aux_bytes32.as_ref().map(|hex_str| {
-        let hex = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-        let bytes = hex::decode(hex).expect("invalid hex for --aux-bytes32");
-        let mut arr = [0u8; 32];
-        arr.copy_from_slice(&bytes);
-        arr
-    });
+    let aux_bytes32: Option<[u8; 32]> = match args.aux_bytes32.as_ref() {
+        Some(hex_str) => {
+            let hex = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+            let bytes = hex::decode(hex).context("invalid hex for --aux-bytes32")?;
+            ensure!(bytes.len() == 32, "--aux-bytes32 must be exactly 32 bytes, got {}", bytes.len());
+            let mut arr = [0u8; 32];
+            arr.copy_from_slice(&bytes);
+            Some(arr)
+        }
+        None => None,
+    };
 
     let config = OracleConfig {
         pool: args.pool,

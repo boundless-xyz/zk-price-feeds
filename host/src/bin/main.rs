@@ -51,7 +51,7 @@ sol! {
 
 sol! {
     struct OracleJournal {
-        bytes steelCommitment;
+        bytes[] steelCommitments;
         address pool;
         uint256 medianPrice;
         uint8 decimals;
@@ -224,13 +224,17 @@ async fn main() -> Result<()> {
     );
 
     // Parse aux_bytes32 if provided.
-    let aux_bytes32: Option<[u8; 32]> = args.aux_bytes32.as_ref().map(|hex_str| {
-        let hex = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-        let bytes = hex::decode(hex).expect("invalid hex for --aux-bytes32");
-        let mut arr = [0u8; 32];
-        arr.copy_from_slice(&bytes);
-        arr
-    });
+    let aux_bytes32: Option<[u8; 32]> = match args.aux_bytes32.as_ref() {
+        Some(hex_str) => {
+            let hex = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+            let bytes = hex::decode(hex).context("invalid hex for --aux-bytes32")?;
+            anyhow::ensure!(bytes.len() == 32, "--aux-bytes32 must be exactly 32 bytes, got {}", bytes.len());
+            let mut arr = [0u8; 32];
+            arr.copy_from_slice(&bytes);
+            Some(arr)
+        }
+        None => None,
+    };
 
     // Build Steel environments and preflight each block.
     let mut inputs = Vec::with_capacity(args.num_blocks as usize);

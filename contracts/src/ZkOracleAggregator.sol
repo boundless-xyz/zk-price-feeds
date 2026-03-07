@@ -26,12 +26,17 @@ contract ZkOracleAggregator is IAggregatorV3Interface {
     /// @notice Minimum number of sources that must have data for the aggregator to return a price.
     uint256 public minSources;
 
+    /// @notice Maximum staleness in seconds. Sources older than this are excluded.
+    /// @dev Set to 0 to disable staleness check.
+    uint256 public maxStaleness;
+
     // ─── Events ──────────────────────────────────────────────────────────
 
     event SourceAdded(address indexed source);
     event SourceRemoved(address indexed source);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event MinSourcesUpdated(uint256 oldMin, uint256 newMin);
+    event MaxStalenessUpdated(uint256 oldMax, uint256 newMax);
 
     // ─── Errors ──────────────────────────────────────────────────────────
 
@@ -41,6 +46,7 @@ contract ZkOracleAggregator is IAggregatorV3Interface {
     error SourceNotFound(address source);
     error InsufficientSources(uint256 available, uint256 required);
     error NoRoundData();
+    error RoundNotTracked(uint80 roundId);
 
     // ─── Modifiers ───────────────────────────────────────────────────────
 
@@ -66,6 +72,7 @@ contract ZkOracleAggregator is IAggregatorV3Interface {
         PRICE_DECIMALS = _decimals;
         feedDescription = _description;
         minSources = _minSources > 0 ? _minSources : 1;
+        maxStaleness = 7200; // Default: 2 hours
         owner = msg.sender;
     }
 
@@ -99,6 +106,12 @@ contract ZkOracleAggregator is IAggregatorV3Interface {
         emit MinSourcesUpdated(old, minSources);
     }
 
+    function setMaxStaleness(uint256 _maxStaleness) external onlyOwner {
+        uint256 old = maxStaleness;
+        maxStaleness = _maxStaleness;
+        emit MaxStalenessUpdated(old, _maxStaleness);
+    }
+
     function transferOwnership(address newOwner) external onlyOwner {
         require(newOwner != address(0), "Zero address");
         emit OwnershipTransferred(owner, newOwner);
@@ -127,14 +140,15 @@ contract ZkOracleAggregator is IAggregatorV3Interface {
     }
 
     /// @inheritdoc IAggregatorV3Interface
+    /// @dev The aggregator does not track historical rounds. Use individual source oracles
+    ///      for historical data. Only roundId 0 (latest) is supported.
     function getRoundData(uint80 _roundId)
         external
         view
         override
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        // Aggregator doesn't track rounds -- delegate to latestRoundData.
-        // For historical data, query individual source oracles.
+        if (_roundId != 0) revert RoundNotTracked(_roundId);
         return this.latestRoundData();
     }
 
@@ -158,6 +172,10 @@ contract ZkOracleAggregator is IAggregatorV3Interface {
                 uint80 rid, int256 ans, uint256 sa, uint256 ua, uint80
             ) {
                 if (ans > 0) {
+                    // Skip stale sources
+                    if (maxStaleness > 0 && block.timestamp > ua && block.timestamp - ua > maxStaleness) {
+                        continue;
+                    }
                     prices[validCount] = ans;
                     validCount++;
                     if (ua > latestUpdatedAt) latestUpdatedAt = ua;

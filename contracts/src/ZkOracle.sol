@@ -107,7 +107,7 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
 
     /// @notice Journal structure matching the guest program output.
     struct OracleJournal {
-        bytes steelCommitment;
+        bytes[] steelCommitments;
         address pool;
         uint256 medianPrice;
         uint8 journalDecimals;
@@ -163,10 +163,10 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
         feedDescription = _description;
         owner = msg.sender;
 
-        // Defaults: 50% max deviation, 3 min samples, no block age check
+        // Defaults: 50% max deviation, 3 min samples, 256-block max age
         maxDeviationBps = 5000;
         minSamples = 3;
-        maxBlockAge = 0;
+        maxBlockAge = 256;
     }
 
     // ─── Admin ───────────────────────────────────────────────────────────
@@ -234,8 +234,11 @@ contract ZkOracle is IAggregatorV3Interface, IBoundlessMarketCallback {
         if (journal.journalDecimals != PRICE_DECIMALS) revert InvalidDecimals(PRICE_DECIMALS, journal.journalDecimals);
 
         if (VALIDATE_COMMITMENT) {
-            Steel.Commitment memory commitment = abi.decode(journal.steelCommitment, (Steel.Commitment));
-            require(Steel.validateCommitment(commitment), "Invalid Steel commitment");
+            // Validate ALL block commitments to ensure every sampled block is from the real chain.
+            for (uint256 i = 0; i < journal.steelCommitments.length; i++) {
+                Steel.Commitment memory commitment = abi.decode(journal.steelCommitments[i], (Steel.Commitment));
+                require(Steel.validateCommitment(commitment), "Invalid Steel commitment");
+            }
         }
 
         if (journal.numSamples < minSamples) {

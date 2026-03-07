@@ -384,7 +384,14 @@ IMAGE_ID={image_id_hex}
     env_content.push_str("\n# Set after deploy\nORACLE_ADDRESS=\n");
 
     std::fs::write(&env_path, &env_content).context("failed to write .env file")?;
-    println!("  Wrote {}", env_path.display());
+    // Restrict file permissions to owner-only (contains private key).
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::Permissions::from_mode(0o600);
+        std::fs::set_permissions(&env_path, perms).ok();
+    }
+    println!("  Wrote {} (permissions: owner-only)", env_path.display());
     println!();
 
     // ─── Deploy? ─────────────────────────────────────────────────────

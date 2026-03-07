@@ -19,8 +19,8 @@ contract ZkOracleRegistry {
     /// @notice All registered feed keys for enumeration.
     bytes32[] public feedKeys;
 
-    /// @notice Oracle address => feed info.
-    mapping(address => FeedInfo) public feedInfo;
+    /// @notice Feed key => feed info (keyed by feed key, not oracle address, to avoid clobbering).
+    mapping(bytes32 => FeedInfo) public feedInfo;
 
     address public owner;
 
@@ -53,7 +53,7 @@ contract ZkOracleRegistry {
         ZkOracle oracleContract = ZkOracle(oracle);
         feeds[key] = oracle;
         feedKeys.push(key);
-        feedInfo[oracle] = FeedInfo({
+        feedInfo[key] = FeedInfo({
             oracle: oracle,
             pool: oracleContract.POOL(),
             description: oracleContract.description(),
@@ -73,7 +73,7 @@ contract ZkOracleRegistry {
         if (oracle == address(0)) revert FeedNotFound(key);
 
         delete feeds[key];
-        delete feedInfo[oracle];
+        delete feedInfo[key];
 
         // Remove from feedKeys array (swap and pop)
         for (uint256 i = 0; i < feedKeys.length; i++) {

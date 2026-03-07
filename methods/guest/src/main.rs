@@ -54,7 +54,7 @@ sol! {
 
 sol! {
     struct OracleJournal {
-        bytes steelCommitment;
+        bytes[] steelCommitments;
         address pool;
         uint256 medianPrice;
         uint8 decimals;
@@ -185,9 +185,9 @@ fn main() {
     let num_samples: u32 = env::read();
 
     let mut prices: Vec<U256> = Vec::with_capacity(num_samples as usize);
+    let mut commitments: Vec<Vec<u8>> = Vec::with_capacity(num_samples as usize);
     let mut start_block: u64 = u64::MAX;
     let mut end_block: u64 = 0;
-    let mut last_commitment: Option<Vec<u8>> = None;
     let mut last_timestamp: u64 = 0;
 
     let scale = U256::from(10u64).pow(U256::from(config.decimals));
@@ -208,9 +208,11 @@ fn main() {
         }
         if block_number > end_block {
             end_block = block_number;
-            last_commitment = Some(evm_env.commitment().abi_encode());
             last_timestamp = block_timestamp;
         }
+
+        // Commit every block's Steel commitment for on-chain validation.
+        commitments.push(evm_env.commitment().abi_encode());
 
         let price: Option<U256> = match config.dex_type {
             DexType::UniswapV2 => {
@@ -381,10 +383,10 @@ fn main() {
         prices[prices.len() / 2]
     };
 
-    let steel_commitment = last_commitment.expect("No blocks processed");
+    assert!(!commitments.is_empty(), "No blocks processed");
 
     let journal = OracleJournal {
-        steelCommitment: steel_commitment.into(),
+        steelCommitments: commitments.into_iter().map(|c| c.into()).collect(),
         pool: config.pool,
         medianPrice: median,
         decimals: config.decimals,
