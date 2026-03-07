@@ -1,10 +1,8 @@
 const computations = [
-  { name: "Single pool median", desc: "20-block median from 1 pool", tag: "Current", gradient: "from-neon-green to-neon-cyan", tagBg: "bg-neon-green/10 text-neon-green border-neon-green/30" },
-  { name: "Multi-pool aggregation", desc: "Read 5 DEX pools, liquidity-weighted median", tag: "325K gas", gradient: "from-neon-cyan to-neon-blue", tagBg: "bg-neon-cyan/10 text-neon-cyan border-neon-cyan/30" },
-  { name: "Cross-DEX price", desc: "Aggregate Uniswap + Sushi + Curve", tag: "325K gas", gradient: "from-neon-blue to-neon-purple", tagBg: "bg-neon-purple/10 text-neon-purple border-neon-purple/30" },
-  { name: "Composite index", desc: "Top-10 DeFi token index in one proof", tag: "325K gas", gradient: "from-neon-purple to-neon-magenta", tagBg: "bg-neon-magenta/10 text-neon-magenta border-neon-magenta/30" },
-  { name: "LP token pricing", desc: "Fair value from underlying reserves", tag: "325K gas", gradient: "from-neon-magenta to-neon-pink", tagBg: "bg-neon-pink/10 text-neon-pink border-neon-pink/30" },
-  { name: "On-chain volatility", desc: "Implied vol from price variance across blocks", tag: "325K gas", gradient: "from-neon-pink to-neon-orange", tagBg: "bg-neon-orange/10 text-neon-orange border-neon-orange/30" },
+  { name: "Single pool median", desc: "20-block median from any V2-compatible pool", tag: "Current", gradient: "from-neon-green to-neon-cyan", tagBg: "bg-neon-green/10 text-neon-green border-neon-green/30" },
+  { name: "Multi-pool aggregation", desc: "Read 5 DEX pools across protocols, liquidity-weighted median", tag: "325K gas", gradient: "from-neon-cyan to-neon-blue", tagBg: "bg-neon-cyan/10 text-neon-cyan border-neon-cyan/30" },
+  { name: "Composite index", desc: "Top-10 DeFi token index verified in one proof", tag: "325K gas", gradient: "from-neon-purple to-neon-magenta", tagBg: "bg-neon-magenta/10 text-neon-magenta border-neon-magenta/30" },
+  { name: "LP token pricing", desc: "Fair value from underlying reserves, proven on-chain", tag: "325K gas", gradient: "from-neon-magenta to-neon-pink", tagBg: "bg-neon-pink/10 text-neon-pink border-neon-pink/30" },
 ];
 
 export default function BeyondBasic() {
@@ -17,11 +15,10 @@ export default function BeyondBasic() {
           <h2 className="text-4xl sm:text-6xl font-display tracking-wide">
             <span className="text-text-primary block">This is the <span className="gradient-text-pink-purple">simplest thing</span></span>
             <span className="text-text-primary block">we can prove.</span>
-            <span className="text-3xl sm:text-4xl text-text-muted block mt-4">Imagine what&apos;s next.</span>
           </h2>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-14">
+        <div className="grid sm:grid-cols-2 gap-5 max-w-4xl mx-auto mb-14">
           {computations.map((c, i) => (
             <div
               key={c.name}

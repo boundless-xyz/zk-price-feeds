@@ -22,6 +22,15 @@ const tokens = [
   { s: "?", lit: false }, { s: "?", lit: false }, { s: "?", lit: false },
 ];
 
+const dexes = [
+  { name: "Uniswap", chains: "Ethereum, Base, Arbitrum, ..." },
+  { name: "PancakeSwap", chains: "BSC, Ethereum, Base, ..." },
+  { name: "Aerodrome", chains: "Base" },
+  { name: "Velodrome", chains: "Optimism" },
+  { name: "SushiSwap", chains: "Multi-chain" },
+  { name: "Any V2 fork", chains: "Any EVM chain" },
+];
+
 export default function Problem() {
   return (
     <section className="py-28 px-6 relative overflow-hidden">
@@ -35,9 +44,7 @@ export default function Problem() {
           </h2>
 
           <p className="text-xl text-text-secondary mb-12 max-w-2xl mx-auto font-body">
-            Want a feed for your token? Pay{" "}
-            <span className="text-neon-orange font-bold">$50-200K/year</span> to
-            sponsor one. Or wait forever.
+            If your token has a pool on any V2-compatible DEX, it can have a ZK-verified price feed. No application, no vendor contract, no waiting.
           </p>
         </div>
 
@@ -87,9 +94,18 @@ export default function Problem() {
           ))}
         </div>
 
-        <p className="text-center text-3xl font-display tracking-wide gradient-text-green-cyan">
-          What if any token could have a price feed?
-        </p>
+        {/* Supported DEXes */}
+        <div className="glass-strong rounded-2xl p-8 max-w-3xl mx-auto text-center">
+          <p className="text-xs font-mono text-text-muted tracking-widest mb-5">SUPPORTED DEX PROTOCOLS</p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {dexes.map((d) => (
+              <div key={d.name} className="glass rounded-lg px-4 py-2.5">
+                <span className="text-text-primary font-bold font-body text-sm">{d.name}</span>
+                <span className="text-text-muted text-xs font-mono ml-2">{d.chains}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );

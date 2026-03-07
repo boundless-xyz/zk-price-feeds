@@ -5,7 +5,7 @@ const steps = [
     gradient: "from-neon-cyan to-neon-blue",
     hoverGlow: "hover-glow-cyan",
     description:
-      "A program inside the zkVM reads DEX pool reserves across 20 blocks. Every call is cryptographically tied to actual Ethereum state -- no trust required.",
+      "A program inside the zkVM reads DEX pool reserves across 20 blocks. Works with any Uniswap V2-compatible pool -- Uniswap, PancakeSwap, Aerodrome, SushiSwap. Every call is cryptographically tied to actual on-chain state.",
   },
   {
     num: "02",
@@ -21,7 +21,7 @@ const steps = [
     gradient: "from-neon-green to-neon-cyan",
     hoverGlow: "hover-glow-green",
     description:
-      "A Solidity contract verifies the proof on-chain and stores the price. Your protocol calls latestRoundData() -- the same interface as Chainlink. Zero code changes.",
+      "A Solidity contract verifies the proof on-chain (~250K gas) and stores the price. Your protocol calls latestRoundData() -- the same interface as Chainlink. Zero code changes.",
   },
 ];
 
@@ -59,7 +59,7 @@ export default function HowItWorks() {
           ))}
         </div>
 
-        {/* Security callout -- absorbed from FlashLoanResistance */}
+        {/* Security callout */}
         <div className="mt-12 glass-strong rounded-2xl p-8 max-w-3xl mx-auto text-center">
           <h3 className="text-2xl font-display tracking-wide gradient-text-pink-purple mb-4">
             20 blocks. Can&apos;t flash-loan that.

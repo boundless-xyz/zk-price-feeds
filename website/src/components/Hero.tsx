@@ -32,21 +32,19 @@ export default function Hero() {
 
         {/* Main headline */}
         <h1 className="mb-8">
-          <span className="block text-5xl sm:text-7xl lg:text-[5.5rem] font-display leading-[1.1] tracking-wide text-text-primary mb-2">
-            A cost-efficient oracle
+          <span className="block text-5xl sm:text-7xl lg:text-[5.5rem] font-display leading-[1.1] tracking-wide gradient-text-green-cyan mb-4">
+            A price feed for every token.
           </span>
-          <span className="block text-5xl sm:text-7xl lg:text-[5.5rem] font-display leading-[1.1] tracking-wide text-text-primary mb-4">
-            for any token.
-          </span>
-          <span className="block text-5xl sm:text-7xl lg:text-[5.5rem] font-display leading-[1.1] tracking-wide gradient-text-green-cyan">
+          <span className="block text-3xl sm:text-5xl lg:text-5xl font-display leading-[1.1] tracking-wide text-text-primary">
             Trust math, not a multisig.
           </span>
         </h1>
 
-        {/* Subhead -- tight, outcome-focused */}
+        {/* Subhead */}
         <p className="text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto mb-12 leading-relaxed font-body">
-          Any token with a DEX pool gets a ZK-verified price feed for $0.01 on L2.
-          Compatible with existing oracle standards. No committees. No vendor contracts. No permission needed.
+          500,000+ on-chain pairs can now have a ZK-verified price feed.
+          Works with Uniswap, PancakeSwap, Aerodrome, and any Uniswap V2-compatible DEX.
+          $0.01 per update on L2. No permission needed.
         </p>
 
         {/* CTAs */}
@@ -68,13 +66,13 @@ export default function Hero() {
           </a>
         </div>
 
-        {/* Stats bar -- 500K first (most differentiated) */}
+        {/* Stats bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto">
           {[
             { value: "500K+", label: "possible pairs", color: "text-neon-magenta" },
             { value: "$0.01", label: "per update (L2)", color: "text-neon-green" },
             { value: "15s", label: "proving time", color: "text-neon-cyan" },
-            { value: "$0", label: "vendor cost", color: "text-neon-yellow" },
+            { value: "Any DEX", label: "V2-compatible pools", color: "text-neon-yellow" },
           ].map((stat) => (
             <div key={stat.label} className="glass rounded-xl p-4 text-center hover:scale-105 transition-transform duration-300">
               <div className={`text-2xl sm:text-3xl font-mono font-bold ${stat.color}`}>
