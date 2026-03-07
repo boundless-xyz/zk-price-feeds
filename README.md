@@ -1,5 +1,7 @@
 # ZK Oracle
 
+> **⚠️ Alpha Software — Not recommended for production use.** This project is under active development. The smart contracts have not been audited. Do not use with significant funds without thorough review.
+
 ZK-verified price feeds for any ERC-20 token with a DEX pool. No vendor approval, no subscriptions, no permission needed. ~$0.01 per update on L2.
 
 Reads on-chain DEX reserves inside the [RISC Zero](https://risczero.com) zkVM, computes a manipulation-resistant median price, and posts it on-chain with a ZK proof. Proof generation is handled by [Boundless](https://boundless.xyz).

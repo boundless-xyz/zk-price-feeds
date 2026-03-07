@@ -242,8 +242,9 @@ struct Args {
     #[arg(long, default_value = "8453", env = "SOURCE_CHAIN_ID")]
     source_chain_id: u64,
 
-    /// Lock timeout in seconds.
-    #[arg(long, default_value = "120", env = "LOCK_TIMEOUT")]
+    /// Lock timeout in seconds. Provers need time to generate the ZK proof, so avoid
+    /// setting this too low. 600s (10 min) is a safe default; shorter values risk expiry.
+    #[arg(long, default_value = "600", env = "LOCK_TIMEOUT")]
     lock_timeout: u32,
 
     /// Gas limit for the callback.
