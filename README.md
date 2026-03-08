@@ -1,4 +1,4 @@
-# ZK Oracle
+# ZK Price Feeds
 
 > **⚠️ Alpha Software — Not recommended for production use.** This project is under active development. The smart contracts have not been audited. Do not use with significant funds without thorough review.
 
