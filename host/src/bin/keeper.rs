@@ -10,7 +10,7 @@
 use alloy_primitives::{Address, U256};
 use alloy_sol_types::sol;
 use anyhow::{Context, Result, ensure};
-use boundless_market::{Client, Deployment, StorageUploaderConfig, request_builder::RequirementParams};
+use boundless_market::{Client, Deployment, StorageUploaderConfig, request_builder::{OfferParams, RequirementParams}};
 use clap::{Parser, ValueEnum};
 use risc0_steel::{
     Contract, EvmBlockHeader,
@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tracing_subscriber::EnvFilter;
 use url::Url;
-use zk_oracle_methods::ZK_ORACLE_GUEST_ELF;
+use zk_oracle_methods::{ZK_ORACLE_GUEST_ELF, ZK_ORACLE_GUEST_ID};
 
 // ─── DEX interfaces ──────────────────────────────────────────────────────────
 
@@ -256,6 +256,16 @@ struct Args {
     #[arg(long, default_value = "600", env = "LOCK_TIMEOUT")]
     lock_timeout: u32,
 
+    /// Maximum price willing to pay per proof request, in ETH (e.g. "0.00005").
+    /// At ~$2000/ETH, 0.00005 ETH ≈ $0.10. If unset, uses the Boundless SDK default.
+    #[arg(long, env = "MAX_PRICE")]
+    max_price: Option<String>,
+
+    /// Duration in seconds for the price to ramp up from min to max.
+    /// This is the "auction window" -- longer values give more provers a chance to bid.
+    #[arg(long, default_value = "900", env = "RAMP_UP_PERIOD")]
+    ramp_up_period: u32,
+
     /// Gas limit for the callback.
     #[arg(long, default_value = "500000", env = "CALLBACK_GAS_LIMIT")]
     callback_gas_limit: u64,
@@ -380,6 +390,34 @@ async fn check_oracle_callback_support(oracle_rpc_url: &Url, oracle_address: Add
     Ok(market != Address::ZERO)
 }
 
+/// Validate CLI args at startup to catch configuration errors early.
+fn validate_args(args: &Args) -> Result<()> {
+    ensure!(args.num_blocks > 0, "num_blocks must be > 0");
+    ensure!(args.stride > 0, "stride must be > 0");
+    ensure!(args.check_interval > 0, "check_interval must be > 0");
+    ensure!(
+        args.ramp_up_period <= args.lock_timeout,
+        "ramp_up_period ({}s) must be <= lock_timeout ({}s). \
+         The auction cannot outlast the proof deadline.",
+        args.ramp_up_period,
+        args.lock_timeout
+    );
+    if args.heartbeat < args.check_interval {
+        eprintln!(
+            "[keeper] Warning: heartbeat ({}s) < check_interval ({}s). \
+             Consider increasing heartbeat or decreasing check_interval.",
+            args.heartbeat, args.check_interval
+        );
+    }
+    if args.deviation_bps > 10000 {
+        eprintln!(
+            "[keeper] Warning: deviation_bps ({}) > 10000 (100%). Deviation trigger will never fire.",
+            args.deviation_bps
+        );
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
@@ -388,6 +426,7 @@ async fn main() -> Result<()> {
         .init();
 
     let args = Args::parse();
+    validate_args(&args)?;
 
     if args.rpc_urls.is_empty() {
         anyhow::bail!("At least one RPC URL is required (--rpc-urls or BASE_MAINNET_RPC)");
@@ -430,9 +469,41 @@ async fn main() -> Result<()> {
     } else {
         println!("  Mode:       manual (keeper waits for proof and calls updatePrice directly)");
     }
+    println!("  Max price:  {}", args.max_price.as_deref().unwrap_or("(SDK default)"));
+    println!("  Ramp-up:    {}s (auction window)", args.ramp_up_period);
     println!("  RPCs:       {} configured", args.rpc_urls.len());
     println!("  State file: {}", args.state_file.display());
     println!("  Max retries: {}", args.max_retries);
+
+    // Log IMAGE_ID for debugging (derived from the compiled guest ELF).
+    let image_id_bytes: Vec<u8> = ZK_ORACLE_GUEST_ID
+        .iter()
+        .flat_map(|w| w.to_le_bytes())
+        .collect();
+    println!("  Image ID:   0x{}", hex::encode(&image_id_bytes));
+
+    // Check wallet balance.
+    {
+        use risc0_steel::alloy::providers::Provider;
+        let wallet_address = args.private_key.address();
+        let provider = ProviderBuilder::new().connect_http(args.oracle_rpc_url.clone());
+        match provider.get_balance(wallet_address).await {
+            Ok(balance) => {
+                let balance_eth = alloy_primitives::utils::format_ether(balance);
+                println!("  Wallet:     {wallet_address:#} ({balance_eth} ETH)");
+                let threshold = alloy_primitives::utils::parse_ether("0.001").unwrap();
+                if balance < threshold {
+                    eprintln!("[keeper] WARNING: wallet balance is very low ({balance_eth} ETH). \
+                        Proof requests and callbacks require gas.");
+                }
+            }
+            Err(e) => {
+                eprintln!("[keeper] Warning: could not check wallet balance: {e:#}");
+                println!("  Wallet:     {wallet_address:#} (balance unknown)");
+            }
+        }
+    }
+
     println!();
 
     use risc0_steel::revm::primitives::hardfork::SpecId;
@@ -461,7 +532,7 @@ async fn main() -> Result<()> {
         .with_uploader_config(&args.storage_config)
         .await?
         .with_private_key(args.private_key.clone())
-        .config_offer_layer(|cfg| cfg.lock_timeout(args.lock_timeout).ramp_up_period(args.lock_timeout.min(60)))
+        .config_offer_layer(|cfg| cfg.lock_timeout(args.lock_timeout).ramp_up_period(args.ramp_up_period))
         .build()
         .await
         .context("failed to build Boundless client")?;
@@ -829,6 +900,16 @@ async fn build_and_submit_callback(
             .callback_gas_limit(args.callback_gas_limit),
     );
 
+    // Set max price per request if configured (value is in ETH, converted to wei).
+    if let Some(ref max_price_str) = args.max_price {
+        let max_price_wei = alloy_primitives::utils::parse_ether(max_price_str)
+            .context("invalid --max-price format (e.g. '0.00005' for 0.00005 ETH)")?;
+        let offer = OfferParams::builder()
+            .max_price(max_price_wei)
+            .build()?;
+        request = request.with_offer(offer);
+    }
+
     let (request_id, _expires_at) = client.submit(request).await?;
     Ok(request_id)
 }
@@ -844,7 +925,7 @@ async fn build_and_submit_manual(
     let stdin_bytes = build_steel_inputs(args, chain_spec, aux_bytes32).await?;
 
     // Submit without callback.
-    let request = if let Some(ref program_url) = args.program_url {
+    let mut request = if let Some(ref program_url) = args.program_url {
         client
             .new_request()
             .with_program_url(program_url.clone())?
@@ -855,6 +936,16 @@ async fn build_and_submit_manual(
             .with_program(ZK_ORACLE_GUEST_ELF)
             .with_stdin(stdin_bytes)
     };
+
+    // Set max price per request if configured (value is in ETH, converted to wei).
+    if let Some(ref max_price_str) = args.max_price {
+        let max_price_wei = alloy_primitives::utils::parse_ether(max_price_str)
+            .context("invalid --max-price format (e.g. '0.00005' for 0.00005 ETH)")?;
+        let offer = OfferParams::builder()
+            .max_price(max_price_wei)
+            .build()?;
+        request = request.with_offer(offer);
+    }
 
     let (request_id, expires_at) = client.submit(request).await?;
     println!("[keeper] Request submitted: {request_id:x} (waiting for proof...)");

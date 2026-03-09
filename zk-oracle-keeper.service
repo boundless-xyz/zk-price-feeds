@@ -1,0 +1,21 @@
+[Unit]
+Description=ZK Oracle Keeper
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/opt/zk-oracle
+ExecStart=/opt/zk-oracle/run-keeper.sh
+TimeoutStopSec=30
+Restart=always
+RestartSec=10
+EnvironmentFile=/opt/zk-oracle/.env
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/zk-oracle/logs /opt/zk-oracle/keeper-state.json
+
+[Install]
+WantedBy=multi-user.target
