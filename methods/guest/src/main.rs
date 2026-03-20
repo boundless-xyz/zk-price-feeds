@@ -387,10 +387,15 @@ fn main() {
     assert!(!commitments.is_empty(), "No blocks processed");
 
     // Bind the oracle config to the proof so the contract can verify no parameters were tampered.
-    let config_hash = keccak256(
-        (config.pool, config.dex_type as u8, t0dec, t1dec, config.decimals, config.twap_window)
-            .abi_encode_packed(),
-    );
+    // Manual abi.encodePacked: address(20) + uint8 + uint8 + uint8 + uint8 + uint32(4) = 28 bytes
+    let mut packed = Vec::with_capacity(28);
+    packed.extend_from_slice(config.pool.as_slice());
+    packed.push(config.dex_type as u8);
+    packed.push(t0dec);
+    packed.push(t1dec);
+    packed.push(config.decimals);
+    packed.extend_from_slice(&config.twap_window.to_be_bytes());
+    let config_hash = keccak256(&packed);
 
     let journal = OracleJournal {
         steelCommitments: commitments.into_iter().map(|c| c.into()).collect(),
