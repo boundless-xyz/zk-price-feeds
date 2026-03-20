@@ -3,7 +3,7 @@ import Reveal from "./Reveal";
 const computations = [
   {
     name: "Single pool median",
-    desc: "20-block median from any DEX pool with TWAP for V3",
+    desc: "20-block median from any DEX pool",
     tag: "Current",
     current: true,
   },
@@ -55,31 +55,31 @@ export default function BeyondBasic() {
         </Reveal>
 
         <Reveal>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-10">
-            {computations.map((c) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-10">
+            {computations.map((c, i) => (
               <div
                 key={c.name}
-                className={`rounded-lg p-5 sm:p-6 ${
+                className={
                   c.current
-                    ? "bg-accent-dim border border-accent/20"
-                    : "bg-white border border-border hover:border-border-strong hover:-translate-y-0.5 transition-all duration-200"
-                }`}
+                    ? "sm:col-span-2 lg:col-span-2 bg-accent/5 border border-accent/20 rounded-xl p-6 sm:p-7"
+                    : "bg-white border border-border rounded-xl p-5 sm:p-6 opacity-80 hover:opacity-100 hover:border-border-strong hover:-translate-y-0.5 transition-all duration-200"
+                }
               >
                 <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-text-primary font-body">
+                  <h3 className={`font-semibold text-text-primary font-body ${c.current ? "text-lg" : ""}`}>
                     {c.name}
                   </h3>
                   <span
-                    className={`text-[10px] font-mono px-2 py-0.5 rounded shrink-0 ml-2 ${
+                    className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full shrink-0 ml-2 ${
                       c.current
-                        ? "bg-accent/15 text-accent font-semibold"
+                        ? "bg-accent/15 text-accent font-bold"
                         : "bg-bg-surface text-text-muted"
                     }`}
                   >
-                    {c.tag}
+                    {c.current ? "Live" : "Coming soon"}
                   </span>
                 </div>
-                <p className="text-sm text-text-secondary font-body">
+                <p className={`text-text-secondary font-body ${c.current ? "text-base" : "text-sm"}`}>
                   {c.desc}
                 </p>
               </div>
@@ -88,7 +88,7 @@ export default function BeyondBasic() {
         </Reveal>
 
         <Reveal>
-          <div className="bg-white border border-border rounded-lg p-5 sm:p-6 max-w-xl">
+          <div className="text-center max-w-xl mx-auto">
             <p className="text-base font-display font-bold text-text-primary mb-2">
               On-chain verification cost is fixed regardless of complexity.
             </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
+import PriceTicker from "./PriceTicker";
 
 interface DexPair {
   chainId: string;
@@ -225,28 +226,25 @@ export default function Hero() {
   const showingExamples = !searched && !loading;
 
   return (
-    <section id="search" className="pt-36 sm:pt-44 pb-16 sm:pb-24">
-      <div className="max-w-5xl mx-auto px-5 sm:px-8">
-        {/* Headline */}
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-display font-bold leading-[1.1] tracking-tight text-text-primary mb-5">
-          A price feed{" "}
-          <br className="hidden sm:block" />
-          for every token.
-        </h1>
-        <p className="text-lg sm:text-xl text-text-secondary max-w-lg mb-10 leading-relaxed font-body">
-          ZK-verified DEX prices for any on-chain pair. No subscription. No
-          vendor contract. Just deploy a pool address and you have a price feed.
-        </p>
+    <section id="search" className="pt-36 sm:pt-44 pb-16 sm:pb-24 relative overflow-hidden">
+      <PriceTicker />
+      <div className="max-w-5xl mx-auto px-5 sm:px-8 relative">
+        {/* Headline — centered */}
+        <div className="text-center mb-12">
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-bold leading-[1.1] tracking-tight text-text-primary mb-5">
+            A price feed for{" "}
+            <br className="hidden sm:block" />
+            every token.
+          </h1>
+          <p className="text-lg text-text-secondary max-w-2xl mx-auto leading-relaxed font-body">
+            ZK-verified DEX prices for any on-chain pair. No subscription. No
+            vendor contract. If you have a DEX pool address you have a price feed.
+          </p>
+        </div>
 
-        {/* Search */}
-        <div className="max-w-xl mb-8">
-          <label
-            htmlFor="token-search"
-            className="block text-xs font-medium text-text-muted font-body mb-2"
-          >
-            Token address
-          </label>
-          <div className="flex flex-col sm:flex-row gap-2">
+        {/* Search — centered, larger, more prominent */}
+        <div className="max-w-2xl mx-auto mb-10">
+          <div className="flex flex-col sm:flex-row gap-3">
             <input
               id="token-search"
               type="text"
@@ -257,21 +255,21 @@ export default function Hero() {
                 (searched ? clearSearch() : doSearch(query))
               }
               placeholder="Token name or address (e.g. AERO, ETH, 0x...)"
-              className="flex-1 px-4 py-3.5 rounded-md bg-white border border-border-strong text-text-primary font-mono text-sm placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+              className="flex-1 bg-white border-2 border-border-strong rounded-xl px-5 py-4 text-lg text-text-primary font-mono placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
             />
             <button
               onClick={searched ? clearSearch : () => doSearch(query)}
               disabled={loading}
-              className={`px-6 py-3.5 rounded-md font-semibold text-sm transition-colors disabled:opacity-50 whitespace-nowrap ${
+              className={`rounded-xl px-6 py-4 font-semibold text-base transition-colors disabled:opacity-50 whitespace-nowrap ${
                 searched
-                  ? "bg-bg-surface border border-border-strong text-text-primary hover:bg-bg-raised"
+                  ? "bg-bg-surface border-2 border-border-strong text-text-primary hover:bg-bg-raised"
                   : "bg-accent text-white hover:bg-accent-hover"
               }`}
             >
               {loading ? "Searching..." : searched ? "Clear" : "Look up pools"}
             </button>
           </div>
-          <p className="text-xs text-text-muted font-body mt-2">
+          <p className="text-sm text-text-muted font-body mt-3 text-center">
             {searched
               ? "Data via DexScreener — sorted by liquidity"
               : "Search by name, symbol, or address. Works on Ethereum, Base, Arbitrum, and 14 more chains."}
@@ -280,16 +278,16 @@ export default function Hero() {
 
         {/* Selected pair cost card */}
         {selectedPair && (
-          <div className="max-w-xl mb-8 bg-white border border-border-strong rounded-lg p-5 sm:p-6 relative animate-fade-in">
+          <div className="max-w-2xl mx-auto mb-10 bg-white border border-border rounded-xl p-6 relative animate-fade-in">
             <button
               onClick={() => setSelectedPair(null)}
-              className="absolute top-3 right-4 text-text-muted hover:text-text-primary text-lg leading-none"
+              className="absolute top-4 right-5 text-text-muted hover:text-text-primary text-lg leading-none"
               aria-label="Close"
             >
               &times;
             </button>
 
-            <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-5">
+            <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-6">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-xl font-bold text-text-primary font-display">
@@ -310,7 +308,7 @@ export default function Hero() {
                 </div>
               </div>
               <div className="sm:text-right">
-                <div className="text-2xl font-mono font-bold text-text-primary">
+                <div className="text-3xl font-mono font-bold text-text-primary">
                   {formatPrice(selectedPair.priceUsd)}
                 </div>
                 <div className="text-xs text-text-muted mt-0.5">
@@ -319,26 +317,28 @@ export default function Hero() {
               </div>
             </div>
 
-            {/* Cost breakdown */}
-            <div className="grid grid-cols-3 gap-2 mb-5">
-              <div className="bg-bg-surface rounded-md p-3 text-center">
-                <div className="text-base sm:text-lg font-mono font-bold text-text-primary">
+            {/* Cost breakdown — three items in a row with + signs */}
+            <div className="flex items-center justify-center gap-3 sm:gap-4 mb-6">
+              <div className="text-center">
+                <div className="text-lg sm:text-xl font-mono font-bold text-text-primary">
                   $0.004
                 </div>
                 <div className="text-[10px] text-text-muted mt-0.5">
                   ZK proving
                 </div>
               </div>
-              <div className="bg-bg-surface rounded-md p-3 text-center">
-                <div className="text-base sm:text-lg font-mono font-bold text-text-primary">
+              <span className="text-xl font-mono text-text-muted">+</span>
+              <div className="text-center">
+                <div className="text-lg sm:text-xl font-mono font-bold text-text-primary">
                   $0.007
                 </div>
                 <div className="text-[10px] text-text-muted mt-0.5">
                   L2 gas
                 </div>
               </div>
-              <div className="bg-accent-dim rounded-md p-3 text-center border border-accent/20">
-                <div className="text-lg sm:text-xl font-mono font-bold text-accent">
+              <span className="text-xl font-mono text-text-muted">=</span>
+              <div className="text-center">
+                <div className="text-xl sm:text-2xl font-mono font-bold text-accent">
                   $0.01
                 </div>
                 <div className="text-[10px] text-text-muted mt-0.5">
@@ -367,13 +367,13 @@ export default function Hero() {
                   href="https://github.com/boundless-xyz/zk-oracle#quick-start"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-4 py-2 rounded-md bg-accent text-white font-semibold text-sm transition-colors hover:bg-accent-hover text-center"
+                  className="px-4 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm transition-colors hover:bg-accent-hover text-center"
                 >
                   Deploy oracle
                 </a>
                 <button
                   onClick={() => copyCliCommand(selectedPair)}
-                  className="text-xs text-text-muted hover:text-accent font-mono transition-colors"
+                  className="px-4 py-2.5 rounded-lg border border-border-strong text-text-primary text-sm font-mono transition-colors hover:bg-bg-surface"
                 >
                   {copied ? "Copied!" : "Copy CLI command"}
                 </button>
@@ -384,14 +384,14 @@ export default function Hero() {
 
         {/* Error */}
         {error && (
-          <div className="max-w-xl mb-6">
+          <div className="max-w-2xl mx-auto mb-6">
             <p className="text-negative font-mono text-sm">{error}</p>
           </div>
         )}
 
         {/* No results */}
         {searched && !loading && pairs.length === 0 && !error && (
-          <div className="max-w-xl mb-6">
+          <div className="max-w-2xl mx-auto mb-6">
             <p className="text-text-secondary font-body">
               No DEX pools found on EVM chains. This token might only trade on
               non-EVM chains or centralized exchanges.
@@ -401,17 +401,17 @@ export default function Hero() {
 
         {/* Loading */}
         {loading && (
-          <div className="max-w-xl mb-6">
+          <div className="max-w-2xl mx-auto mb-6">
             <p className="text-text-muted font-mono text-sm">
               Searching DEX pools...
             </p>
           </div>
         )}
 
-        {/* Search results */}
+        {/* Search results — clean table, no card wrapper */}
         {pairs.length > 0 && !selectedPair && (
-          <div className="bg-white border border-border-strong rounded-lg overflow-hidden max-w-xl mb-6 animate-fade-in">
-            <div className="px-4 py-2.5 border-b border-border flex items-center justify-between">
+          <div className="max-w-2xl mx-auto mb-10 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-mono text-text-muted">
                 {pairs.length} pool{pairs.length !== 1 && "s"} found
               </span>
@@ -426,19 +426,19 @@ export default function Hero() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-2.5 px-4 text-xs font-body font-medium text-text-muted">
+                    <th className="text-left py-2.5 px-3 text-[11px] font-medium text-text-muted">
                       Pair
                     </th>
-                    <th className="text-left py-2.5 px-4 text-xs font-body font-medium text-text-muted hidden sm:table-cell">
+                    <th className="text-left py-2.5 px-3 text-[11px] font-medium text-text-muted hidden sm:table-cell">
                       DEX
                     </th>
-                    <th className="text-left py-2.5 px-4 text-xs font-body font-medium text-text-muted hidden md:table-cell">
+                    <th className="text-left py-2.5 px-3 text-[11px] font-medium text-text-muted hidden md:table-cell">
                       Chain
                     </th>
-                    <th className="text-right py-2.5 px-4 text-xs font-body font-medium text-text-muted">
+                    <th className="text-right py-2.5 px-3 text-[11px] font-medium text-text-muted">
                       Price
                     </th>
-                    <th className="text-right py-2.5 px-4 text-xs font-body font-medium text-text-muted hidden sm:table-cell">
+                    <th className="text-right py-2.5 px-3 text-[11px] font-medium text-text-muted hidden sm:table-cell">
                       Liquidity
                     </th>
                   </tr>
@@ -448,11 +448,11 @@ export default function Hero() {
                     <tr
                       key={pair.pairAddress + pair.chainId}
                       onClick={() => setSelectedPair(pair)}
-                      className={`border-b border-border/50 hover:bg-bg-surface active:bg-accent-dim transition-colors cursor-pointer ${
+                      className={`border-b border-border/50 hover:bg-bg-surface transition-colors cursor-pointer ${
                         idx === 0 ? "border-l-2 border-l-accent" : ""
                       }`}
                     >
-                      <td className="py-2.5 px-4">
+                      <td className="py-3 px-3">
                         <span className="font-semibold text-text-primary font-body text-sm">
                           {pair.baseToken.symbol}
                         </span>
@@ -470,18 +470,18 @@ export default function Hero() {
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-4 text-text-secondary text-sm font-body hidden sm:table-cell">
+                      <td className="py-3 px-3 text-sm text-text-secondary font-body hidden sm:table-cell">
                         {getDexLabel(pair.dexId)}
                       </td>
-                      <td className="py-2.5 px-4 hidden md:table-cell">
-                        <span className="text-xs text-text-muted bg-bg-surface px-2 py-0.5 rounded">
+                      <td className="py-3 px-3 hidden md:table-cell">
+                        <span className="text-sm text-text-secondary">
                           {EVM_CHAINS[pair.chainId] || pair.chainId}
                         </span>
                       </td>
-                      <td className="py-2.5 px-4 text-right font-mono text-text-primary text-sm">
+                      <td className="py-3 px-3 text-right font-mono text-text-primary text-sm">
                         {formatPrice(pair.priceUsd)}
                       </td>
-                      <td className="py-2.5 px-4 text-right text-text-secondary text-sm font-body hidden sm:table-cell">
+                      <td className="py-3 px-3 text-right font-mono text-text-secondary text-sm hidden sm:table-cell">
                         {formatUsd(pair.liquidity?.usd)}
                       </td>
                     </tr>
@@ -490,7 +490,7 @@ export default function Hero() {
               </table>
             </div>
             {pairs.length > 12 && (
-              <div className="text-center py-2.5 text-text-muted text-xs border-t border-border/50">
+              <div className="text-center py-3 text-text-muted text-xs border-t border-border/50">
                 + {pairs.length - 12} more pools
               </div>
             )}
@@ -499,7 +499,7 @@ export default function Hero() {
 
         {/* Back to list */}
         {pairs.length > 0 && selectedPair && (
-          <div className="max-w-xl mb-6">
+          <div className="max-w-2xl mx-auto mb-6">
             <button
               onClick={() => setSelectedPair(null)}
               className="text-accent hover:text-accent-hover text-sm font-body font-medium transition-colors"
@@ -509,112 +509,143 @@ export default function Hero() {
           </div>
         )}
 
-        {/* Example feeds (default state) */}
+        {/* Example feeds (default state) — clean table, no card wrapper */}
         {showingExamples && (
-          <>
-            <p className="text-xs font-body text-text-muted mb-2">
+          <div className="max-w-2xl mx-auto mb-14">
+            <p className="text-xs font-body text-text-muted mb-3 text-center">
               Or try these tokens:
             </p>
-            <div className="bg-white border border-border-strong rounded-lg overflow-hidden max-w-xl mb-12">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-2.5 px-4 text-xs font-body font-medium text-text-muted">
-                        Token
-                      </th>
-                      <th className="text-left py-2.5 px-4 text-xs font-body font-medium text-text-muted hidden sm:table-cell">
-                        DEX
-                      </th>
-                      <th className="text-right py-2.5 px-4 text-xs font-body font-medium text-text-muted">
-                        Cost
-                      </th>
-                      <th className="text-right py-2.5 px-4 text-xs font-body font-medium text-text-muted">
-                        Chainlink?
-                      </th>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-2.5 px-3 text-[11px] font-medium text-text-muted">
+                      Token
+                    </th>
+                    <th className="text-left py-2.5 px-3 text-[11px] font-medium text-text-muted hidden sm:table-cell">
+                      DEX
+                    </th>
+                    <th className="text-right py-2.5 px-3 text-[11px] font-medium text-text-muted">
+                      Cost
+                    </th>
+                    <th className="text-right py-2.5 px-3 text-[11px] font-medium text-text-muted">
+                      Chainlink?
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {EXAMPLE_FEEDS.map((feed) => (
+                    <tr
+                      key={feed.token}
+                      onClick={() => {
+                        setQuery(feed.address);
+                        doSearch(feed.address);
+                      }}
+                      className="border-b border-border/50 hover:bg-bg-surface transition-colors cursor-pointer"
+                    >
+                      <td className="py-3 px-3">
+                        <span className="font-semibold text-text-primary font-body">
+                          {feed.token}
+                        </span>
+                        <span className="block sm:hidden text-[10px] text-text-muted mt-0.5">
+                          {feed.dex} &middot; {feed.chain}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-sm text-text-secondary font-body hidden sm:table-cell">
+                        {feed.dex}
+                        <span className="text-text-muted text-xs ml-2">
+                          {feed.chain}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right font-mono text-accent font-bold text-sm">
+                        $0.01
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        {feed.hasChainlink ? (
+                          <span className="bg-accent-dim text-accent text-xs rounded-full px-2 py-0.5 font-medium">
+                            Has feed
+                          </span>
+                        ) : (
+                          <span className="bg-negative-dim text-negative text-xs rounded-full px-2 py-0.5 font-semibold">
+                            No feed
+                          </span>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {EXAMPLE_FEEDS.map((feed) => (
-                      <tr
-                        key={feed.token}
-                        onClick={() => {
-                          setQuery(feed.address);
-                          doSearch(feed.address);
-                        }}
-                        className="border-b border-border/50 hover:bg-bg-surface active:bg-accent-dim transition-colors cursor-pointer"
-                      >
-                        <td className="py-2.5 px-4">
-                          <span className="font-semibold text-text-primary font-body">
-                            {feed.token}
-                          </span>
-                          <span className="block sm:hidden text-[10px] text-text-muted mt-0.5">
-                            {feed.dex} &middot; {feed.chain}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-text-secondary text-sm font-body hidden sm:table-cell">
-                          {feed.dex}
-                          <span className="text-text-muted text-xs ml-2">
-                            {feed.chain}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-4 text-right font-mono text-accent font-bold text-sm">
-                          $0.01
-                        </td>
-                        <td className="py-2.5 px-4 text-right">
-                          {feed.hasChainlink ? (
-                            <span className="text-text-muted text-xs font-body">
-                              Has feed
-                            </span>
-                          ) : (
-                            <span className="text-xs font-semibold text-negative bg-negative-dim px-2 py-0.5 rounded">
-                              No feed
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </>
+          </div>
         )}
 
-        {/* Key numbers -- always visible */}
-        <div className="flex flex-wrap gap-x-10 sm:gap-x-14 gap-y-5">
-          <div>
+        {/* Key metrics row — 5 items centered, no card wrapper */}
+        <div className="flex flex-wrap justify-center gap-x-10 sm:gap-x-14 lg:gap-x-16 gap-y-6">
+          <div className="text-center">
             <div className="text-3xl sm:text-4xl font-mono font-bold text-text-primary tracking-tight">
               500K+
             </div>
-            <div className="text-sm text-text-muted font-body mt-0.5">
+            <div className="text-sm text-text-muted font-body mt-1">
               on-chain pairs
             </div>
           </div>
-          <div>
+          <div className="text-center">
             <div className="text-3xl sm:text-4xl font-mono font-bold text-accent tracking-tight">
               $0.01
             </div>
-            <div className="text-sm text-text-muted font-body mt-0.5">
+            <div className="text-sm text-text-muted font-body mt-1">
               per update on L2
             </div>
           </div>
-          <div>
+          <div className="text-center">
             <div className="text-3xl sm:text-4xl font-mono font-bold text-text-primary tracking-tight">
               15s
             </div>
-            <div className="text-sm text-text-muted font-body mt-0.5">
+            <div className="text-sm text-text-muted font-body mt-1">
               proving time
             </div>
           </div>
-          <div>
+          <div className="text-center">
             <div className="text-3xl sm:text-4xl font-mono font-bold text-text-primary tracking-tight">
               8
             </div>
-            <div className="text-sm text-text-muted font-body mt-0.5">
+            <div className="text-sm text-text-muted font-body mt-1">
               DEX types
             </div>
           </div>
+          <div className="text-center">
+            <div className="text-3xl sm:text-4xl font-mono font-bold text-text-primary tracking-tight">
+              <span className="inline-flex items-center gap-1.5">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+                  <polyline points="4 17 10 11 4 5" />
+                  <line x1="12" y1="19" x2="20" y2="19" />
+                </svg>
+              </span>
+            </div>
+            <div className="text-sm text-text-muted font-body mt-1">
+              agent-ready
+            </div>
+          </div>
+        </div>
+
+        {/* Agent-friendly callout */}
+        <div className="mt-8 flex justify-center">
+          <a
+            href="https://github.com/boundless-xyz/zk-price-feeds"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-accent/5 border border-accent/15 rounded-full px-5 py-2 text-sm text-text-secondary hover:border-accent/30 hover:bg-accent/8 transition-colors duration-200"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+              <polyline points="4 17 10 11 4 5" />
+              <line x1="12" y1="19" x2="20" y2="19" />
+            </svg>
+            <span className="font-body">AI agents can deploy feeds programmatically.</span>
+            <span className="font-mono text-accent text-xs">llms.txt</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-muted">
+              <path d="M7 17L17 7M17 7H7M17 7V17" />
+            </svg>
+          </a>
         </div>
       </div>
     </section>

@@ -14,11 +14,11 @@ const faqs = [
   },
   {
     q: "What DEXes do you support?",
-    a: "8 DEX types: Uniswap V2, Uniswap V3 (with observe() TWAP), Curve, Balancer V2, Solidly/Aerodrome, Trader Joe LB, DODO PMM, and Algebra V3 (Camelot/QuickSwap). Any V2 fork works out of the box.",
+    a: "8 DEX types: Uniswap V2, Uniswap V3, Curve, Balancer V2, Solidly/Aerodrome, Trader Joe LB, DODO PMM, and Algebra V3 (Camelot/QuickSwap). Any V2 fork works out of the box.",
   },
   {
     q: "Is it flash-loan resistant?",
-    a: "V3 pools: Yes, completely. The observe() TWAP reads tick accumulators that can't be manipulated within a transaction. V2 pools: Resistant via multi-block median -- an attacker must manipulate a majority of sampled blocks.",
+    a: "Yes. We prove prices across a contiguous range of 10+ blocks and take the median. Flash loans execute within a single block — they cannot influence the median across a range. The range is configurable (use more blocks for stronger guarantees). An attacker would need to sustain manipulation across a majority of the range, risking arbitrageurs correcting the price every block.",
   },
   {
     q: "What chains?",
@@ -43,23 +43,23 @@ export default function FAQ() {
 
   return (
     <section id="faq" className="py-20 sm:py-28 border-t border-border">
-      <div className="max-w-5xl mx-auto px-5 sm:px-8">
+      <div className="max-w-3xl mx-auto px-5 sm:px-8">
         <Reveal>
-          <h2 className="text-3xl sm:text-4xl font-display font-bold tracking-tight text-text-primary mb-10 sm:mb-14">
+          <h2 className="text-3xl sm:text-4xl font-display font-bold tracking-tight text-text-primary mb-10 sm:mb-14 text-center">
             FAQ
           </h2>
         </Reveal>
 
-        <div className="max-w-2xl space-y-1">
+        <div>
           {faqs.map((faq, i) => (
             <Reveal key={i} delay={i * 40}>
               <div className="border-b border-border">
                 <button
                   onClick={() => setOpen(open === i ? null : i)}
-                  className="w-full flex items-start justify-between gap-4 py-4 text-left group"
+                  className="w-full flex items-start justify-between gap-4 py-5 text-left group"
                   aria-expanded={open === i}
                 >
-                  <span className="text-base font-body font-medium text-text-primary group-hover:text-accent transition-colors">
+                  <span className="text-base font-display font-semibold text-text-primary group-hover:text-accent transition-colors">
                     {faq.q}
                   </span>
                   <span
@@ -87,7 +87,7 @@ export default function FAQ() {
                   data-open={open === i ? "true" : "false"}
                 >
                   <div>
-                    <p className="text-text-secondary font-body text-sm leading-relaxed pb-4">
+                    <p className="text-sm text-text-secondary font-body leading-relaxed pb-5">
                       {faq.a}
                     </p>
                   </div>

@@ -16,25 +16,27 @@ export default function L2Economics() {
             On L2, this gets ridiculous.
           </h2>
           <p className="text-text-secondary font-body mb-10 sm:mb-14 max-w-lg leading-relaxed">
-            On L2, proving cost ($0.004) dominates gas cost ($0.007). A
+            On L2, proving cost (<span className="font-mono">$0.004</span>) dominates gas cost (<span className="font-mono">$0.007</span>). A
             continuously-updated oracle feed costs less than a cup of coffee per
             month.
           </p>
         </Reveal>
 
-        <Reveal>
-          <div className="bg-white border border-border-strong rounded-lg overflow-hidden max-w-xl mb-8">
+        {/* Asymmetric split — table left, latency cards right */}
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6 lg:gap-8">
+          {/* Table on left */}
+          <Reveal>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted">
+                    <th className="text-left py-3 px-4 text-[11px] font-body font-medium text-text-muted uppercase tracking-wider">
                       Frequency
                     </th>
-                    <th className="text-right py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted">
+                    <th className="text-right py-3 px-4 text-[11px] font-body font-medium text-text-muted uppercase tracking-wider">
                       L1 cost/month
                     </th>
-                    <th className="text-right py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted">
+                    <th className="text-right py-3 px-4 text-[11px] font-body font-medium text-text-muted uppercase tracking-wider">
                       L2 cost/month
                     </th>
                   </tr>
@@ -45,13 +47,13 @@ export default function L2Economics() {
                       key={r.freq}
                       className="border-b border-border/50 last:border-b-0"
                     >
-                      <td className="py-3 px-4 sm:px-5 text-sm font-body text-text-primary">
+                      <td className="py-3.5 px-4 text-sm font-body text-text-primary">
                         {r.freq}
                       </td>
-                      <td className="py-3 px-4 sm:px-5 text-sm font-mono text-text-muted text-right">
+                      <td className="py-3.5 px-4 text-sm font-mono text-text-muted text-right">
                         {r.l1}
                       </td>
-                      <td className="py-3 px-4 sm:px-5 text-sm font-mono text-accent font-bold text-right">
+                      <td className="py-3.5 px-4 text-sm font-mono text-accent font-bold text-right">
                         {r.l2}
                       </td>
                     </tr>
@@ -59,35 +61,38 @@ export default function L2Economics() {
                 </tbody>
               </table>
             </div>
-          </div>
-        </Reveal>
+          </Reveal>
 
-        <Reveal>
-          <div className="flex flex-col sm:flex-row gap-4 max-w-xl">
-            <div className="bg-accent-dim border border-accent/20 rounded-lg p-5 flex-1">
-              <div className="text-3xl font-mono font-bold text-accent mb-1">
-                ~16s
+          {/* Latency cards on right — stacked */}
+          <div className="flex flex-col gap-4">
+            <Reveal>
+              <div className="bg-white border border-border rounded-xl p-5">
+                <div className="font-mono text-3xl font-bold text-accent mb-1">
+                  ~16s
+                </div>
+                <div className="text-sm text-text-secondary font-body">
+                  Update latency on L2
+                </div>
+                <div className="text-xs text-text-muted font-mono mt-1">
+                  15s proving + ~1s block time
+                </div>
               </div>
-              <div className="text-sm text-text-secondary font-body">
-                Update latency on L2
+            </Reveal>
+            <Reveal delay={100}>
+              <div className="bg-white border border-border rounded-xl p-5">
+                <div className="font-mono text-3xl font-bold text-text-primary mb-1">
+                  ~27s
+                </div>
+                <div className="text-sm text-text-secondary font-body">
+                  Update latency on L1
+                </div>
+                <div className="text-xs text-text-muted font-mono mt-1">
+                  15s proving + 12s block time
+                </div>
               </div>
-              <div className="text-xs text-text-muted font-body mt-1">
-                15s proving + ~1s block time
-              </div>
-            </div>
-            <div className="bg-bg-surface rounded-lg p-5 flex-1">
-              <div className="text-3xl font-mono font-bold text-text-primary mb-1">
-                ~27s
-              </div>
-              <div className="text-sm text-text-secondary font-body">
-                Update latency on L1
-              </div>
-              <div className="text-xs text-text-muted font-body mt-1">
-                15s proving + 12s block time
-              </div>
-            </div>
+            </Reveal>
           </div>
-        </Reveal>
+        </div>
       </div>
     </section>
   );

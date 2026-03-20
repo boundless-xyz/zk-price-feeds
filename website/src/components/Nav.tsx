@@ -14,19 +14,19 @@ export default function Nav() {
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-200 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-bg/95 backdrop-blur-sm border-b border-border"
+          ? "bg-bg/95 backdrop-blur-md border-b border-border shadow-sm"
           : "bg-transparent"
       }`}
     >
-      <div className="bg-accent text-white text-center py-2 px-4 text-sm font-body">
+      <div className="bg-accent/5 text-text-secondary text-center py-1.5 px-4 text-xs font-body">
         Built to be agent friendly. Deploy a feed programmatically with the{" "}
         <a
           href="https://github.com/boundless-xyz/zk-oracle"
           target="_blank"
           rel="noopener noreferrer"
-          className="underline font-semibold hover:text-white/80"
+          className="underline font-medium text-accent hover:text-accent-hover transition-colors"
         >
           CLI wizard
         </a>
@@ -44,25 +44,25 @@ export default function Nav() {
         <div className="hidden sm:flex items-center gap-7 text-sm font-body">
           <a
             href="#search"
-            className="text-text-secondary hover:text-text-primary transition-colors"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             Search
           </a>
           <a
             href="#how-it-works"
-            className="text-text-secondary hover:text-text-primary transition-colors"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             How It Works
           </a>
           <a
             href="#cost"
-            className="text-text-secondary hover:text-text-primary transition-colors"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             Cost
           </a>
           <a
             href="#faq"
-            className="text-text-secondary hover:text-text-primary transition-colors"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             FAQ
           </a>
@@ -70,7 +70,7 @@ export default function Nav() {
             href="https://github.com/boundless-xyz/boundless/discussions"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-text-secondary hover:text-text-primary transition-colors"
+            className="text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
           >
             Help
           </a>
@@ -78,7 +78,7 @@ export default function Nav() {
             href="https://github.com/boundless-xyz/zk-oracle"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-4 py-1.5 rounded-md bg-accent text-white font-medium text-sm transition-colors hover:bg-accent-hover"
+            className="px-4 py-1.5 rounded-lg bg-accent text-white font-medium text-sm transition-colors hover:bg-accent-hover"
           >
             GitHub
           </a>
@@ -111,36 +111,36 @@ export default function Nav() {
 
       {/* Mobile dropdown */}
       <div
-        className={`sm:hidden border-t border-border bg-bg overflow-hidden transition-all duration-200 ${
-          open ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+        className={`sm:hidden border-t border-border bg-bg/98 backdrop-blur-md overflow-hidden transition-all duration-300 ease-out ${
+          open ? "max-h-72 opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         <div className="px-5 py-5 flex flex-col gap-4 text-sm font-body">
           <a
             href="#search"
             onClick={() => setOpen(false)}
-            className="text-text-secondary hover:text-text-primary"
+            className="text-sm font-medium text-text-secondary hover:text-accent transition-colors"
           >
             Search
           </a>
           <a
             href="#how-it-works"
             onClick={() => setOpen(false)}
-            className="text-text-secondary hover:text-text-primary"
+            className="text-sm font-medium text-text-secondary hover:text-accent transition-colors"
           >
             How It Works
           </a>
           <a
             href="#cost"
             onClick={() => setOpen(false)}
-            className="text-text-secondary hover:text-text-primary"
+            className="text-sm font-medium text-text-secondary hover:text-accent transition-colors"
           >
             Cost
           </a>
           <a
             href="#faq"
             onClick={() => setOpen(false)}
-            className="text-text-secondary hover:text-text-primary"
+            className="text-sm font-medium text-text-secondary hover:text-accent transition-colors"
           >
             FAQ
           </a>
@@ -149,7 +149,7 @@ export default function Nav() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setOpen(false)}
-            className="text-text-secondary hover:text-text-primary"
+            className="text-sm font-medium text-text-secondary hover:text-accent transition-colors"
           >
             Help
           </a>
@@ -158,7 +158,7 @@ export default function Nav() {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setOpen(false)}
-            className="px-4 py-2.5 rounded-md bg-accent text-white font-medium text-sm text-center"
+            className="px-4 py-2.5 rounded-lg bg-accent text-white font-medium text-sm text-center transition-colors hover:bg-accent-hover"
           >
             GitHub
           </a>

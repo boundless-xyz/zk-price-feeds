@@ -15,7 +15,7 @@ export default function Footer() {
   }
 
   return (
-    <footer className="py-20 sm:py-28 px-5 sm:px-8 bg-code-bg text-code-text">
+    <footer className="pt-28 pb-20 sm:pb-28 px-5 sm:px-8 bg-code-bg text-code-text">
       <div className="max-w-5xl mx-auto">
         <h2 className="text-3xl sm:text-4xl font-display font-bold tracking-tight mb-8">
           Deploy a feed in 5 minutes.
@@ -34,7 +34,7 @@ export default function Footer() {
             </span>
             <button
               onClick={copyCommand}
-              className="ml-auto text-code-muted hover:text-code-text text-xs font-mono transition-colors opacity-0 group-hover:opacity-100"
+              className="ml-auto text-code-muted hover:text-code-text text-xs font-mono transition-all duration-200 opacity-0 group-hover:opacity-100"
               aria-label="Copy command"
             >
               {copied ? "Copied!" : "Copy"}
@@ -73,7 +73,7 @@ export default function Footer() {
             href="https://github.com/boundless-xyz/zk-oracle"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-5 py-2.5 rounded-md bg-accent text-white font-semibold text-sm transition-colors hover:bg-accent-hover"
+            className="px-5 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm transition-colors hover:bg-accent-hover"
           >
             GitHub
           </a>
@@ -81,7 +81,7 @@ export default function Footer() {
             href="https://docs.beboundless.xyz"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-5 py-2.5 rounded-md border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
+            className="px-5 py-2.5 rounded-lg border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
           >
             Docs
           </a>
@@ -89,7 +89,7 @@ export default function Footer() {
             href="https://github.com/boundless-xyz/boundless/discussions"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-5 py-2.5 rounded-md border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
+            className="px-5 py-2.5 rounded-lg border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
           >
             Help
           </a>
@@ -97,7 +97,7 @@ export default function Footer() {
             href="https://beboundless.xyz"
             target="_blank"
             rel="noopener noreferrer"
-            className="px-5 py-2.5 rounded-md border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
+            className="px-5 py-2.5 rounded-lg border border-white/15 text-code-text font-medium text-sm hover:bg-white/5 transition-colors"
           >
             Boundless
           </a>

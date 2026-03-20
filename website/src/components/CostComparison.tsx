@@ -2,82 +2,76 @@ import Reveal from "./Reveal";
 
 const providers = [
   {
+    name: "ZK Price Feed",
+    coverage: "Any DEX pool",
+    access: "Permissionless",
+    trust: "Mathematics",
+    color: "text-accent",
+    highlight: true,
+  },
+  {
     name: "Chainlink",
-    cost: "$0 (LINK-subsidized)",
+    coverage: "~860 feeds",
+    access: "Contact sales",
     trust: "4-31 node committee",
-    gas: "~400K",
-    vendor: "\"Contact sales\"",
     color: "text-chainlink-blue",
   },
   {
     name: "Pyth",
-    cost: "$0.001/update",
+    coverage: "~500 feeds",
+    access: "Council approval",
     trust: "Wormhole guardians",
-    gas: "~90K",
-    vendor: "Free",
     color: "text-pyth-purple",
   },
   {
     name: "RedStone",
-    cost: "$0 (sponsor-paid)",
+    coverage: "~1,000 feeds",
+    access: "Team approval",
     trust: "Signer set",
-    gas: "~65K",
-    vendor: "Free",
     color: "text-redstone-red",
   },
   {
     name: "Chronicle",
-    cost: "$0 (sponsor-paid)",
+    coverage: "~70 feeds",
+    access: "Allowlist only",
     trust: "Schnorr multisig",
-    gas: "~250K",
-    vendor: "Allowlist only",
     color: "text-chronicle-teal",
-  },
-  {
-    name: "ZK Price Feed",
-    cost: "$0.004 + gas",
-    trust: "Mathematics",
-    gas: "~250K",
-    vendor: "Free, permissionless",
-    color: "text-accent",
-    highlight: true,
   },
 ];
 
 export default function CostComparison() {
   return (
-    <section id="cost" className="py-20 sm:py-28 bg-bg-surface">
+    <section id="cost" className="py-20 sm:py-28 border-t border-border">
       <div className="max-w-5xl mx-auto px-5 sm:px-8">
         <Reveal>
           <h2 className="text-3xl sm:text-4xl font-display font-bold tracking-tight text-text-primary mb-3">
-            The oracle pricing racket, visualized.
+            Other oracles choose which tokens get a feed.
           </h2>
           <p className="text-text-secondary font-body mb-10 sm:mb-14 max-w-lg leading-relaxed">
-            Other oracles hide their costs behind vendor contracts and
-            governance votes. Here&apos;s the real comparison.
+            Existing oracles curate a fixed list of pairs and gatekeep access
+            behind vendor contracts, governance votes, or allowlists. If your
+            token isn&apos;t on their list, you&apos;re out of luck.
           </p>
         </Reveal>
 
-        {/* Table */}
-        <Reveal>
-          <div className="bg-white border border-border-strong rounded-lg overflow-hidden mb-8">
+        {/* Full-width table + right-aligned callouts */}
+        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-8 items-start">
+          {/* Table — clean, no card wrapper */}
+          <Reveal>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted">
+                    <th className="text-left py-3 px-4 text-[11px] font-body font-medium text-text-muted uppercase tracking-wider">
                       Provider
                     </th>
-                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted hidden sm:table-cell">
-                      Update cost
+                    <th className="text-left py-3 px-4 text-[11px] font-body font-medium text-text-muted uppercase tracking-wider">
+                      Pair coverage
                     </th>
-                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted hidden md:table-cell">
-                      On-chain gas
+                    <th className="text-left py-3 px-4 text-[11px] font-body font-medium text-text-muted uppercase tracking-wider hidden sm:table-cell">
+                      Access
                     </th>
-                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted hidden lg:table-cell">
-                      Vendor cost
-                    </th>
-                    <th className="text-left py-3 px-4 sm:px-5 text-xs font-body font-medium text-text-muted">
+                    <th className="text-left py-3 px-4 text-[11px] font-body font-medium text-text-muted uppercase tracking-wider">
                       Trust model
                     </th>
                   </tr>
@@ -87,26 +81,37 @@ export default function CostComparison() {
                     <tr
                       key={p.name}
                       className={`border-b border-border/50 last:border-b-0 ${
-                        p.highlight ? "bg-accent-dim" : ""
+                        p.highlight ? "bg-accent/5" : ""
                       }`}
                     >
                       <td
-                        className={`py-3.5 px-4 sm:px-5 font-semibold font-body text-sm ${p.color}`}
+                        className={`py-3.5 px-4 font-semibold font-body text-sm ${p.color}`}
                       >
                         {p.name}
                       </td>
-                      <td className="py-3.5 px-4 sm:px-5 text-sm font-mono text-text-secondary hidden sm:table-cell">
-                        {p.cost}
-                      </td>
-                      <td className="py-3.5 px-4 sm:px-5 text-sm font-mono text-text-secondary hidden md:table-cell">
-                        {p.gas}
-                      </td>
-                      <td className="py-3.5 px-4 sm:px-5 text-sm text-text-secondary font-body hidden lg:table-cell">
-                        {p.vendor}
-                      </td>
-                      <td className="py-3.5 px-4 sm:px-5 text-sm">
+                      <td className="py-3.5 px-4 text-sm font-mono">
                         {p.highlight ? (
-                          <span className="text-accent font-bold font-mono">
+                          <span className="text-accent font-bold">
+                            {p.coverage}
+                          </span>
+                        ) : (
+                          <span className="text-text-secondary">
+                            {p.coverage}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-sm font-body hidden sm:table-cell">
+                        {p.highlight ? (
+                          <span className="text-accent font-semibold">
+                            {p.access}
+                          </span>
+                        ) : (
+                          <span className="text-text-muted">{p.access}</span>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4 text-sm">
+                        {p.highlight ? (
+                          <span className="font-semibold text-accent font-mono">
                             {p.trust}
                           </span>
                         ) : (
@@ -120,22 +125,45 @@ export default function CostComparison() {
                 </tbody>
               </table>
             </div>
-          </div>
-        </Reveal>
+          </Reveal>
 
-        {/* Mathematics callout */}
-        <Reveal>
-          <div className="border-l-4 border-accent bg-white rounded-r-lg p-5 sm:p-6 max-w-xl">
-            <p className="text-xl sm:text-2xl font-display font-bold text-text-primary mb-2">
-              The only oracle where the trust model is &ldquo;mathematics.&rdquo;
-            </p>
-            <p className="text-text-secondary font-body text-sm leading-relaxed">
-              ZK proofs verify that the price was computed correctly from real
-              on-chain state. No committee of signers. No multisig. No
-              guardians. Just a proof anyone can verify.
-            </p>
+          {/* Right-aligned callout cards */}
+          <div className="flex flex-col gap-4">
+            <Reveal>
+              <div className="border-l-4 border-accent bg-white rounded-r-lg p-5">
+                <p className="font-mono text-2xl font-bold text-text-primary mb-1">
+                  500K+
+                </p>
+                <p className="text-text-secondary font-body text-sm leading-relaxed">
+                  DEX pools exist on-chain. Every one of them is a feed you can
+                  deploy today — no proposal, no vote, no vendor.
+                </p>
+              </div>
+            </Reveal>
+            <Reveal>
+              <div className="border-l-4 border-accent bg-white rounded-r-lg p-5">
+                <p className="font-mono text-2xl font-bold text-text-primary mb-1">
+                  ~$0.004
+                </p>
+                <p className="text-text-secondary font-body text-sm leading-relaxed">
+                  Per ZK-proven update via the Boundless proving network. No LINK
+                  subsidies. No hidden vendor contracts. Transparent cost.
+                </p>
+              </div>
+            </Reveal>
+            <Reveal>
+              <div className="border-l-4 border-accent bg-white rounded-r-lg p-5">
+                <p className="font-mono text-2xl font-bold text-accent mb-1">
+                  Math
+                </p>
+                <p className="text-text-secondary font-body text-sm leading-relaxed">
+                  ZK proofs verify prices from real on-chain state. No committee.
+                  No multisig. No guardians. A proof anyone can verify.
+                </p>
+              </div>
+            </Reveal>
           </div>
-        </Reveal>
+        </div>
       </div>
     </section>
   );
