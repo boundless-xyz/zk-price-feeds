@@ -1,5 +1,7 @@
 # ZK Price Feeds
 
+**[anyfeed.vercel.app](https://anyfeed.vercel.app)** — Search any token, get a ZK-verified price feed.
+
 > **⚠️ Alpha Software — Not recommended for production use.** This project is under active development. The smart contracts have not been audited. Do not use with significant funds without thorough review.
 
 ZK-verified price feeds for any ERC-20 token with a DEX pool. No vendor approval, no subscriptions, no permission needed. ~$0.01 per update on L2.
