@@ -23,7 +23,7 @@ export default function Nav() {
       <div className="bg-accent/5 text-text-secondary text-center py-1.5 px-4 text-xs font-body">
         Built to be agent friendly. Deploy a feed programmatically with the{" "}
         <a
-          href="https://github.com/boundless-xyz/zk-oracle"
+          href="https://github.com/boundless-xyz/zk-price-feeds"
           target="_blank"
           rel="noopener noreferrer"
           className="underline font-medium text-accent hover:text-accent-hover transition-colors"
@@ -75,7 +75,7 @@ export default function Nav() {
             Help
           </a>
           <a
-            href="https://github.com/boundless-xyz/zk-oracle"
+            href="https://github.com/boundless-xyz/zk-price-feeds"
             target="_blank"
             rel="noopener noreferrer"
             className="px-4 py-1.5 rounded-lg bg-accent text-white font-medium text-sm transition-colors hover:bg-accent-hover"
@@ -154,7 +154,7 @@ export default function Nav() {
             Help
           </a>
           <a
-            href="https://github.com/boundless-xyz/zk-oracle"
+            href="https://github.com/boundless-xyz/zk-price-feeds"
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => setOpen(false)}

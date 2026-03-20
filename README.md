@@ -20,8 +20,8 @@ Drop-in compatible with Chainlink (`AggregatorV3Interface`), Pyth, RedStone, and
 ### 1. Clone and build
 
 ```bash
-git clone https://github.com/boundless-xyz/zk-oracle
-cd zk-oracle
+git clone https://github.com/boundless-xyz/zk-price-feeds
+cd zk-price-feeds
 cargo build --release
 ```
 

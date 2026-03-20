@@ -217,7 +217,7 @@ export default function Hero() {
   }
 
   function copyCliCommand(pair: DexPair) {
-    const cmd = `git clone https://github.com/boundless-xyz/zk-oracle && cd zk-oracle && POOL_ADDRESS=${pair.pairAddress} cargo run --release --bin wizard`;
+    const cmd = `git clone https://github.com/boundless-xyz/zk-price-feeds && cd zk-price-feeds && POOL_ADDRESS=${pair.pairAddress} cargo run --release --bin wizard`;
     navigator.clipboard.writeText(cmd);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -364,7 +364,7 @@ export default function Hero() {
               </div>
               <div className="flex items-center gap-3">
                 <a
-                  href="https://github.com/boundless-xyz/zk-oracle#quick-start"
+                  href="https://github.com/boundless-xyz/zk-price-feeds#quick-start"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-4 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm transition-colors hover:bg-accent-hover text-center"

@@ -6,7 +6,7 @@ export default function Footer() {
   const [copied, setCopied] = useState(false);
 
   const command =
-    "git clone https://github.com/boundless-xyz/zk-oracle && cd zk-oracle && POOL_ADDRESS=0x... RPC_URL=https://... cargo run --release";
+    "git clone https://github.com/boundless-xyz/zk-price-feeds && cd zk-price-feeds && POOL_ADDRESS=0x... RPC_URL=https://... cargo run --release";
 
   function copyCommand() {
     navigator.clipboard.writeText(command);
@@ -48,11 +48,11 @@ export default function Footer() {
               <span className="text-code-accent">$</span>
               <span className="text-code-text">
                 {" "}
-                git clone https://github.com/boundless-xyz/zk-oracle
+                git clone https://github.com/boundless-xyz/zk-price-feeds
               </span>
               {"\n"}
               <span className="text-code-accent">$</span>
-              <span className="text-code-text"> cd zk-oracle</span>
+              <span className="text-code-text"> cd zk-price-feeds</span>
               {"\n\n"}
               <span className="text-code-muted">
                 # Set your pool address and run
@@ -70,7 +70,7 @@ export default function Footer() {
         {/* Links */}
         <div className="flex items-center gap-3 flex-wrap mb-12">
           <a
-            href="https://github.com/boundless-xyz/zk-oracle"
+            href="https://github.com/boundless-xyz/zk-price-feeds"
             target="_blank"
             rel="noopener noreferrer"
             className="px-5 py-2.5 rounded-lg bg-accent text-white font-semibold text-sm transition-colors hover:bg-accent-hover"
