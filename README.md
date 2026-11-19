@@ -1,3 +1,5 @@
+> **Archived:** Historical proof-based price feed demo. For context on the Boundless proving protocol pause, see the [Boundless Foundation announcement](https://boundlessfdn.org/blog/zkc-the-ai-access-coin).
+
 # ZK Price Feeds
 
 **[anyfeed.vercel.app](https://anyfeed.vercel.app)** — Search any token, get a ZK-verified price feed.
